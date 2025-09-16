@@ -5,7 +5,7 @@ CREATE TABLE Branch (
     branch_phone_number char(10) ,
     status Boolean 
 );
-
+CREATE TYPE etype AS ENUM('Agent','Branch Manager','Admin');
 CREATE TABLE Employee(
     employee_id char(10) PRIMARY KEY,
     name varchar(50),
@@ -14,7 +14,7 @@ CREATE TABLE Employee(
     address varchar(255),
     date_started date,
     last_login_time timestamp,
-    type char(20),
+    type etype,
     status boolean,
     branch_id char(7) REFERENCES Branch(branch_id)    
 );
@@ -31,7 +31,7 @@ CREATE TABLE Token(
 CREATE TABLE Authentication(
     username varchar(30) PRIMARY KEY,
     password varchar(255),
-    type varchar(50),
+    type etype,
     employee_id char(10) REFERENCES Employee(employee_id)
 );
 
@@ -46,10 +46,10 @@ CREATE TABLE Customer(
     status boolean,
     employee_id char(10) REFERENCES Employee(employee_id)
 );
-
+CREATE TYPE stype AS ENUM('Children','Teen','Adult','Senior','Joint');
 CREATE TABLE SavingsAccount_Plans(
    s_plan_id char(5) PRIMARY KEY,
-   plan_name varchar(50),
+   plan_name stype,
    interest_rate char(5),
    min_balance numeric(12,2)
 );
@@ -88,14 +88,54 @@ CREATE TABLE AccountHolder(
    customer_id char(10)REFERENCES Customer(customer_id),
    saving_account_id char(10) REFERENCES SavingsAccount(saving_account_id)
 );
-
+CREATE TYPE transtype AS ENUM('Interest','Withdrawal','Deposit');
 CREATE TABLE Transactions(
    transaction_id int PRIMARY KEY,
    holder_id char(10) REFERENCES AccountHolder(holder_id),
-   type varchar(50),
+   type transtype,
    amount numeric(12,2),
    timestamp timestamp,
    ref_number int,
-   description varchar(255)
-);
+   description varchar(255));
+
+-- Branch
+CREATE INDEX idx_branch_name ON Branch(branch_name);
+CREATE INDEX idx_branch_location ON Branch(location);
+
+-- Employee
+CREATE INDEX idx_employee_branch_id ON Employee(branch_id);
+CREATE INDEX idx_employee_nic ON Employee(nic);
+CREATE INDEX idx_employee_phone ON Employee(phone_number);
+
+-- Token
+CREATE INDEX idx_token_employee_id ON Token(employee_id);
+
+-- Authentication
+CREATE INDEX idx_auth_employee_id ON Authentication(employee_id);
+
+-- Customer
+CREATE INDEX idx_customer_nic ON Customer(nic);
+CREATE INDEX idx_customer_phone ON Customer(phone_number);
+CREATE INDEX idx_customer_email ON Customer(email);
+CREATE INDEX idx_customer_employee_id ON Customer(employee_id);
+
+-- SavingsAccount
+CREATE INDEX idx_savings_employee_id ON SavingsAccount(employee_id);
+CREATE INDEX idx_savings_plan_id ON SavingsAccount(s_plan_id);
+CREATE INDEX idx_savings_branch_id ON SavingsAccount(branch_id);
+
+-- FixedDeposit
+CREATE INDEX idx_fd_saving_account_id ON FixedDeposit(saving_account_id);
+CREATE INDEX idx_fd_plan_id ON FixedDeposit(f_plan_id);
+
+-- AccountHolder
+CREATE INDEX idx_holder_customer_id ON AccountHolder(customer_id);
+CREATE INDEX idx_holder_saving_account_id ON AccountHolder(saving_account_id);
+
+-- Transactions
+CREATE INDEX idx_transaction_holder_id ON Transactions(holder_id);
+CREATE INDEX idx_transaction_timestamp ON Transactions(timestamp);
+CREATE INDEX idx_transaction_ref_number ON Transactions(ref_number);
+
+
 
