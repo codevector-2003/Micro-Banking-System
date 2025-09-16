@@ -98,44 +98,22 @@ CREATE TABLE Transactions(
    ref_number int,
    description varchar(255));
 
--- Branch
-CREATE INDEX idx_branch_name ON Branch(branch_name);
-CREATE INDEX idx_branch_location ON Branch(location);
-
 -- Employee
 CREATE INDEX idx_employee_branch_id ON Employee(branch_id);
-CREATE INDEX idx_employee_nic ON Employee(nic);
-CREATE INDEX idx_employee_phone ON Employee(phone_number);
+
+-- Customer
+CREATE INDEX idx_customer_employee_id ON Customer(employee_id);
 
 -- Token
 CREATE INDEX idx_token_employee_id ON Token(employee_id);
 
--- Authentication
-CREATE INDEX idx_auth_employee_id ON Authentication(employee_id);
-
--- Customer
-CREATE INDEX idx_customer_nic ON Customer(nic);
-CREATE INDEX idx_customer_phone ON Customer(phone_number);
-CREATE INDEX idx_customer_email ON Customer(email);
-CREATE INDEX idx_customer_employee_id ON Customer(employee_id);
-
--- SavingsAccount
-CREATE INDEX idx_savings_employee_id ON SavingsAccount(employee_id);
-CREATE INDEX idx_savings_plan_id ON SavingsAccount(s_plan_id);
-CREATE INDEX idx_savings_branch_id ON SavingsAccount(branch_id);
-
--- FixedDeposit
-CREATE INDEX idx_fd_saving_account_id ON FixedDeposit(saving_account_id);
-CREATE INDEX idx_fd_plan_id ON FixedDeposit(f_plan_id);
-
 -- AccountHolder
 CREATE INDEX idx_holder_customer_id ON AccountHolder(customer_id);
-CREATE INDEX idx_holder_saving_account_id ON AccountHolder(saving_account_id);
 
 -- Transactions
 CREATE INDEX idx_transaction_holder_id ON Transactions(holder_id);
-CREATE INDEX idx_transaction_timestamp ON Transactions(timestamp);
-CREATE INDEX idx_transaction_ref_number ON Transactions(ref_number);
+
+
 
 
 
