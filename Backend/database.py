@@ -1,11 +1,11 @@
 import psycopg2
 
 DATABASE_CONFIG = {
-    "host": "localhost",
+    "host": "db.jfzmhqjqkypvrkjbaanr.supabase.co",
     "port": "5432",
-    "database": "BankingSystem",
+    "database": "postgres",
     "user": "postgres",
-    "password": "1234"
+    "password": "hKJj0tRo0UqmzIr8"
 }
 
 

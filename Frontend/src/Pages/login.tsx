@@ -2,7 +2,8 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser } from '@fortawesome/free-solid-svg-icons';
-
+import { jwtDecode } from 'jwt-decode';
+import { API_URL } from '../config';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -14,9 +15,46 @@ const Login = () => {
         e.preventDefault();
         setError('');
         try {
+            const response = await fetch(`${API_URL}/auth/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    username,
+                    password,
+                }),
+            });
 
-        }
-        catch (err) {
+            if (!response.ok) {
+                setError('Login failed. Please check your credentials.');
+                return;
+            }
+
+            const data = await response.json();
+            const token = data.access_token;
+            localStorage.setItem('token', token);
+
+
+            const decoded: any = jwtDecode(token);
+
+            const userInfoRes = await fetch(`${API_URL}/auth/users/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            const userInfo = await userInfoRes.json();
+
+
+            if (userInfo.type === 'admin') {
+                navigate('/admin/dashboard');
+            } else if (userInfo.type === 'agent') {
+                navigate('/agent/dashboard');
+            } else {
+                navigate('/dashboard');
+            }
+        } catch (err) {
             setError('Login failed. Please try again.');
         }
     }
