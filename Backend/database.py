@@ -9,7 +9,7 @@ DATABASE_CONFIG = {
 }
 
 
-def get_db_connection():
+def get_db():
     conn = psycopg2.connect(**DATABASE_CONFIG)
     try:
         yield conn
