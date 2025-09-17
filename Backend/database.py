@@ -1,15 +1,16 @@
 import psycopg2
 
 DATABASE_CONFIG = {
-    "host": "localhost",
+    "host": "db.jfzmhqjqkypvrkjbaanr.supabase.co",
     "port": "5432",
-    "database": "BankingSystem",
+    "database": "postgres",
     "user": "postgres",
-    "password": "1234"
+    "password": "hKJj0tRo0UqmzIr8",
+    "sslmode": "require"
 }
 
 
-def get_db_connection():
+def get_db():
     conn = psycopg2.connect(**DATABASE_CONFIG)
     try:
         yield conn
