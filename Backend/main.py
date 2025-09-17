@@ -1,3 +1,4 @@
+import psycopg2
 from fastapi import FastAPI
 from auth import router as auth_router
 

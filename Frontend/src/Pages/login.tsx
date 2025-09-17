@@ -38,18 +38,9 @@ const Login = () => {
 
             const decoded: any = jwtDecode(token);
 
-            const userInfoRes = await fetch(`${API_URL}/auth/users/me`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
-            const userInfo = await userInfoRes.json();
-
-
-            if (userInfo.type === 'admin') {
+            if (decoded.type === 'admin') {
                 navigate('/admin/dashboard');
-            } else if (userInfo.type === 'agent') {
+            } else if (decoded.type === 'agent') {
                 navigate('/agent/dashboard');
             } else {
                 navigate('/dashboard');
