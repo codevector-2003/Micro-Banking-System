@@ -63,16 +63,18 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-def create_user_account(conn, user: AuthenticationCreate):
+def create_user_account(conn, user):
+    cursor = conn.cursor()
+    # Convert string "NULL" or empty string to Python None
     hashed_password = get_password_hash(user.password)
-    with conn.cursor() as cursor:
-        cursor.execute(
-            "INSERT INTO authentication (username, password, type, employee_id) VALUES (%s, %s, %s, %s) RETURNING employee_id",
-            (user.username, hashed_password, user.type.value, user.employee_id)
-        )
-        employee_id = cursor.fetchone()[0]
-        conn.commit()
-        return employee_id
+    employee_id = None if user.employee_id in (
+        "NULL", "", None) else user.employee_id
+    cursor.execute(
+        "INSERT INTO authentication (username, password, type, employee_id) VALUES (%s, %s, %s, %s)",
+        (user.username, hashed_password, user.type.value, employee_id)
+    )
+    conn.commit()
+    return employee_id
 
 
 app = FastAPI(title="Micro Banking System", version="1.0.0")

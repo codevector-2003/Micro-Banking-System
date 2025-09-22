@@ -77,7 +77,7 @@ class AuthenticationCreate(BaseModel):
     username: str = Field(max_length=30)
     password: str = Field(max_length=255)  # Hash before DB insert
     type: Etype
-    employee_id: str = Field(max_length=10)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class AuthenticationRead(AuthenticationCreate):

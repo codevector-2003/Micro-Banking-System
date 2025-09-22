@@ -1,12 +1,18 @@
 import psycopg2
-
+# DATABASE_CONFIG = {
+#     "host": "db.jfzmhqjqkypvrkjbaanr.supabase.co",
+#     "port": "5432",
+#     "database": "postgres",
+#     "user": "postgres",
+#     "password": "hKJj0tRo0UqmzIr8",
+#     "sslmode": "require"
+# }
 DATABASE_CONFIG = {
-    "host": "db.jfzmhqjqkypvrkjbaanr.supabase.co",
+    "host": "localhost",
     "port": "5432",
-    "database": "postgres",
+    "database": "B_trust ",
     "user": "postgres",
-    "password": "hKJj0tRo0UqmzIr8",
-    "sslmode": "require"
+    "password": "1234",
 }
 
 
