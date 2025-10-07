@@ -6,7 +6,6 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from database import get_db
 from schemas import Token, TokenData, Etype, AuthenticationCreate, AuthenticationRead
@@ -75,9 +74,6 @@ def create_user_account(conn, user):
     )
     conn.commit()
     return employee_id
-
-
-app = FastAPI(title="Micro Banking System", version="1.0.0")
 
 
 @router.post("/user/register", response_model=AuthenticationRead)

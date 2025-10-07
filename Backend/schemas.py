@@ -191,3 +191,29 @@ class TransactionsCreate(BaseModel):
 
 class TransactionsRead(TransactionsCreate):
     transaction_id: int
+
+# Security: Secure request models for customer operations
+
+
+class CustomerSearchRequest(BaseModel):
+    """Secure search request model for customer search operations"""
+    customer_id: Optional[str] = Field(default=None, max_length=10)
+    nic: Optional[str] = Field(default=None, max_length=12)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+
+
+class CustomerUpdateRequest(BaseModel):
+    """Secure update request model for customer update operations"""
+    customer_id: str = Field(max_length=10)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+    address: Optional[str] = Field(default=None, max_length=255)
+    email: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[bool] = Field(default=None)
+
+
+class CustomerStatusRequest(BaseModel):
+    """Secure status update request model for customer status operations"""
+    customer_id: str = Field(max_length=10)
+    status: bool
