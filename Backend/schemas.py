@@ -138,6 +138,11 @@ class SavingsAccountCreate(BaseModel):
 class SavingsAccountRead(SavingsAccountCreate):
     saving_account_id: str = Field(max_length=10)
 
+
+class AccountStatusRequest(BaseModel):
+    saving_account_id: str
+    status: bool
+
 # FixedDeposit_Plans Models
 
 

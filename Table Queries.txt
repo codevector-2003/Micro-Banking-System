@@ -191,3 +191,40 @@ CREATE TRIGGER customer_id_trigger
 BEFORE INSERT ON customer
 FOR EACH ROW
 EXECUTE FUNCTION set_customer_id();
+
+populate table
+INSERT INTO SavingsAccount_Plans (s_plan_id, plan_name, interest_rate, min_balance) VALUES
+('CH001', 'Children', '12', 0.00),
+('TE001', 'Teen', '11', 500.00),
+('AD001', 'Adult', '10', 1000.00),
+('SE001', 'Senior', '13', 1000.00),
+('JO001', 'Joint', '7', 5000.00);
+
+
+
+to create saving account id
+
+-- 1. Create the trigger function
+CREATE OR REPLACE FUNCTION set_saving_account_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_id TEXT;
+BEGIN
+    IF NEW.saving_account_id IS NULL THEN
+        LOOP
+            -- Generate a random 10-digit number as text
+            new_id := lpad((floor(random() * 1e10))::text, 10, '0');
+            -- Ensure uniqueness
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM SavingsAccount WHERE saving_account_id = new_id);
+        END LOOP;
+        NEW.saving_account_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Create the trigger on the SavingsAccount table
+CREATE TRIGGER saving_account_id_trigger
+BEFORE INSERT ON SavingsAccount
+FOR EACH ROW
+EXECUTE FUNCTION set_saving_account_id();
