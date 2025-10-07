@@ -9,29 +9,40 @@ router = APIRouter()
 
 
 @router.post("/employee", response_model=EmployeeRead)
-def create_employee(employee: EmployeeCreate, conn=Depends(get_db), current_user=Depends(get_current_user)) -> EmployeeRead:  # Fixed return type
-    # Fixed enum value
-    if current_user.get('type') not in ['branch_manager', 'admin']:
+def create_employee(employee: EmployeeCreate, conn=Depends(get_db), current_user=Depends(get_current_user)) -> EmployeeRead:
+    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to create employees"
         )
 
     try:
+        from datetime import datetime
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             start_date = employee.date_started if employee.date_started else date.today()
+            last_login_time = datetime.now()
             cursor.execute("""
-                INSERT INTO employee (name, nic, phone_number, address, date_started, branch_id)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING employee_id, name, nic, phone_number, address, date_started, branch_id
-            """, (employee.name, employee.nic, employee.phone_number, employee.address, start_date, employee.branch_id))
+                INSERT INTO employee (name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
+            """, (
+                employee.name,
+                employee.nic,
+                employee.phone_number,
+                employee.address,
+                start_date,
+                last_login_time,
+                employee.type,
+                employee.status,
+                employee.branch_id
+            ))
 
             result = cursor.fetchone()
             if not result:
                 raise HTTPException(
                     status_code=500, detail="Failed to create employee")
 
-            conn.commit()  # Added commit
-            return EmployeeRead(**result)  # Return proper model
+            conn.commit()
+            return EmployeeRead(**result)
 
     except HTTPException:
         conn.rollback()
@@ -47,14 +58,14 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
     """
     Search employees by various criteria.
     """
-    if current_user.get('type') not in ['branch_manager', 'admin', 'agent']:
+    if current_user.get('type').lower() not in ['branch_manager', 'admin', 'agent']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             # Base query
             query = """
-                SELECT employee_id, name, nic, phone_number, address, date_started, branch_id
+                SELECT employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
                 FROM employee
                 WHERE 1=1
             """
@@ -94,13 +105,18 @@ def get_all_employees(skip: int = 0, limit: int = 100, conn=Depends(get_db), cur
     """
     Get all employees with pagination.
     """
-    if current_user.get('type') not in ['branch_manager', 'admin']:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions")
+        # If branch manager, check status is True
+    if current_user.get('type').lower() == 'branch_manager' and not current_user.get('status', False):
+        raise HTTPException(
+            status_code=403, detail="Branch manager account is not active")
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute("""
-                SELECT employee_id, name, nic, phone_number, address, date_started, branch_id
+                SELECT employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
                 FROM employee
                 ORDER BY name
                 OFFSET %s LIMIT %s
@@ -119,7 +135,7 @@ def update_employee_contact(update_request: dict, conn=Depends(get_db), current_
     """
     Update employee contact details (phone_number, address).
     """
-    if current_user.get('type') not in ['branch_manager', 'admin']:
+    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
@@ -158,7 +174,7 @@ def update_employee_contact(update_request: dict, conn=Depends(get_db), current_
                 UPDATE employee 
                 SET {', '.join(update_fields)}
                 WHERE employee_id = %s
-                RETURNING employee_id, name, nic, phone_number, address, date_started, branch_id
+                RETURNING employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
             """
 
             cursor.execute(query, update_values)
@@ -167,8 +183,13 @@ def update_employee_contact(update_request: dict, conn=Depends(get_db), current_
             if not result:
                 raise HTTPException(
                     status_code=500, detail="Failed to update employee")
-
-            conn.commit()
+                if current_user.get('type').lower() not in ['branch_manager', 'admin', 'agent']:
+                    raise HTTPException(
+                        status_code=403, detail="Insufficient permissions")
+                # If branch manager, check status is True
+                if current_user.get('type').lower() == 'branch_manager' and not current_user.get('status', False):
+                    raise HTTPException(
+                        status_code=403, detail="Branch manager account is not active")
             return EmployeeRead(**result)
 
     except HTTPException:
@@ -185,7 +206,7 @@ def change_employee_status(status_request: dict, conn=Depends(get_db), current_u
     """
     Change employee status (active/inactive).
     """
-    if current_user.get('type') != 'admin':  # Only admin can change status
+    if current_user.get('type').lower() != 'admin':  # Only admin can change status
         raise HTTPException(
             status_code=403, detail="Only admin can change employee status")
 
@@ -205,7 +226,7 @@ def change_employee_status(status_request: dict, conn=Depends(get_db), current_u
                 UPDATE employee 
                 SET status = %s
                 WHERE employee_id = %s
-                RETURNING employee_id, name, nic, phone_number, address, date_started, branch_id
+                RETURNING employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
             """, (new_status, employee_id))
 
             result = cursor.fetchone()

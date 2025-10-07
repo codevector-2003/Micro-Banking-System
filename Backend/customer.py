@@ -11,10 +11,11 @@ router = APIRouter()
 @router.post("/customer/", response_model=CustomerRead)
 def create_customer(customer: CustomerCreate, conn=Depends(get_db), current_user=Depends(get_current_user)) -> CustomerRead:
     # Security: Check user permissions
-    if current_user.get('type') not in ['admin', 'agent']:
+    if current_user.get('type').lower() not in 'agent':
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to create customers")
-
+    current_user_id = current_user.get('employee_id')
+    status = True  # New customers are active by default
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute("""
@@ -22,7 +23,7 @@ def create_customer(customer: CustomerCreate, conn=Depends(get_db), current_user
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
             """, (customer.name, customer.nic, customer.phone_number, customer.address,
-                  customer.date_of_birth, customer.email, customer.status, customer.employee_id))
+                  customer.date_of_birth, customer.email, status, current_user_id))
 
             row = cursor.fetchone()
             if not row:
@@ -43,8 +44,6 @@ def create_customer(customer: CustomerCreate, conn=Depends(get_db), current_user
         else:
             raise HTTPException(
                 status_code=500, detail=f"Database error: {str(e)}")
-
-# Security: Replace unsafe URL-based endpoints with secure POST requests
 
 
 @router.post("/customer/search", response_model=list[CustomerRead])
@@ -79,6 +78,11 @@ def search_customers(search_request: CustomerSearchRequest, conn=Depends(get_db)
                 raise HTTPException(
                     status_code=400, detail="Provide at least one search criteria")
 
+            # If agent, restrict to their own customers
+            if current_user.get('type') == 'agent':
+                conditions.append("employee_id = %s")
+                values.append(current_user.get('employee_id'))
+
             query = f"""
                 SELECT customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
                 FROM customer
@@ -101,15 +105,18 @@ def search_customers(search_request: CustomerSearchRequest, conn=Depends(get_db)
             status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.get("/customers/", response_model=list[CustomerRead])
-def get_all_customers(conn=Depends(get_db)) -> list[CustomerRead]:
+@router.get("/customers/", response_model=list[CustomerRead],)
+def get_all_customers(conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[CustomerRead]:
+    query = """SELECT customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
+            From customer
+            """
+    if current_user.get('type').lower() == 'agent':
+        query += " WHERE employee_id = %s"
+        values = (current_user.get('employee_id'),)
+
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute("""
-                SELECT customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
-                FROM customer
-                ORDER BY name
-            """)
+            cursor.execute(query, values)
 
             rows = cursor.fetchall()
             return [CustomerRead(**row) for row in rows]
@@ -121,10 +128,7 @@ def get_all_customers(conn=Depends(get_db)) -> list[CustomerRead]:
 
 @router.put("/customer/update", response_model=CustomerRead)
 def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(get_db), current_user=Depends(get_current_user)) -> CustomerRead:
-    """
-    Secure customer update using request body instead of URL parameters.
-    Only admin and authorized agent can update customer details.
-    """
+
     # Security: Check user permissions
     if current_user.get('type') not in ['admin', 'agent']:
         raise HTTPException(
@@ -132,12 +136,18 @@ def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            # First check if customer exists
-            cursor.execute(
-                "SELECT customer_id FROM customer WHERE customer_id = %s", (update_request.customer_id,))
+            # First check if customer exists and, if agent, restrict to their own customers
+            if current_user.get('type') == 'agent':
+                cursor.execute(
+                    "SELECT customer_id FROM customer WHERE customer_id = %s AND employee_id = %s",
+                    (update_request.customer_id, current_user.get('employee_id')))
+            else:
+                cursor.execute(
+                    "SELECT customer_id FROM customer WHERE customer_id = %s",
+                    (update_request.customer_id,))
             if not cursor.fetchone():
                 raise HTTPException(
-                    status_code=404, detail="Customer not found")
+                    status_code=404, detail="Customer not found or not authorized")
 
             # Build dynamic update query based on provided fields
             update_fields = []
@@ -154,13 +164,22 @@ def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(
             # Add customer_id to values for WHERE clause
             update_values.append(update_request.customer_id)
 
-            # Execute update query
-            query = f"""
-                UPDATE customer 
-                SET {', '.join(update_fields)}
-                WHERE customer_id = %s
-                RETURNING customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
-            """
+            # If agent, restrict update to their own customers
+            if current_user.get('type') == 'agent':
+                query = f"""
+                    UPDATE customer 
+                    SET {', '.join(update_fields)}
+                    WHERE customer_id = %s AND employee_id = %s
+                    RETURNING customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
+                """
+                update_values.append(current_user.get('employee_id'))
+            else:
+                query = f"""
+                    UPDATE customer 
+                    SET {', '.join(update_fields)}
+                    WHERE customer_id = %s
+                    RETURNING customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
+                """
 
             cursor.execute(query, update_values)
 
@@ -189,12 +208,22 @@ def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(
 def change_customer_status(status_request: CustomerStatusRequest, conn=Depends(get_db), current_user=Depends(get_current_user)) -> CustomerRead:
     """
     Secure customer status update using request body instead of URL parameters.
-    Only admin can update customer status.
+    Only admin and authorized agent can update customer status.
     """
-    # Security: Check user permissions - only admin can change status
-    if current_user.get('type') != 'admin':
+    # Security: Check user permissions
+    if current_user.get('type') not in ['admin', 'agent']:
         raise HTTPException(
-            status_code=403, detail="Only admin can update customer status")
+            status_code=403, detail="Insufficient permissions to update customer status")
+
+    # If agent, check customer belongs to agent
+    if current_user.get('type') == 'agent':
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "SELECT customer_id FROM customer WHERE customer_id = %s AND employee_id = %s",
+                (status_request.customer_id, current_user.get('employee_id')))
+            if not cursor.fetchone():
+                raise HTTPException(
+                    status_code=403, detail="Agent not authorized to update this customer's status")
 
     return update_customer_details(
         CustomerUpdateRequest(

@@ -104,8 +104,8 @@ class CustomerCreate(BaseModel):
     address: str = Field(max_length=255)
     date_of_birth: date
     email: str | None = Field(default=None, max_length=255)
-    status: bool
-    employee_id: str = Field(max_length=10)
+    status: Optional[bool] = Field(default=True)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class CustomerRead(CustomerCreate):
