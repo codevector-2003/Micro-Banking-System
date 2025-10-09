@@ -1,0 +1,115 @@
+CREATE TABLE branch (
+    branch_id char(5) PRIMARY KEY,
+    branch_name varchar(30) ,
+    location varchar(30),
+    branch_phone_number char(10) ,
+    status Boolean
+);
+
+CREATE TYPE etype AS ENUM('Agent','Branch Manager','Admin');
+CREATE TABLE employee(
+    employee_id char(5) PRIMARY KEY,
+    name varchar(50),
+    nic varchar(12),
+    phone_number char(10),
+    address varchar(255),
+    date_started date,
+    last_login_time timestamp,
+    type etype,
+    status boolean,
+    branch_id char(5) REFERENCES Branch(branch_id)
+);
+
+CREATE TABLE token(
+    token_id varchar(128) PRIMARY KEY,
+    token_value varchar(255),
+    created_time timestamp,
+    last_used timestamp,
+    employee_id char(5) REFERENCES Employee(employee_id)
+);
+
+CREATE TABLE authentication(
+    username varchar(30) PRIMARY KEY,
+    password varchar(255),
+    type etype,
+    employee_id char(5) REFERENCES Employee(employee_id)
+);
+
+CREATE TABLE customer(
+    customer_id char(5) PRIMARY KEY,
+    name varchar(50),
+    nic  varchar(12),
+    phone_number char(10),
+    address varchar(255),
+    date_of_birth date,
+    email varchar(255),
+    status boolean,
+    employee_id char(5) REFERENCES Employee(employee_id)
+);
+
+CREATE TYPE stype AS ENUM('Children','Teen','Adult','Senior','Joint');
+CREATE TABLE savingsaccount_plans(
+   s_plan_id char(5) PRIMARY KEY,
+   plan_name stype,
+   interest_rate numeric(5,2),
+   min_balance numeric(12,2)
+);
+
+CREATE TABLE savingsaccount(
+    saving_account_id char(5) PRIMARY KEY,
+    open_date timestamp,
+    balance numeric(12,2),
+    employee_id char(5) REFERENCES Employee(employee_id),
+    s_plan_id char(5) REFERENCES SavingsAccount_Plans(s_plan_id),
+    status boolean,
+    branch_id char(5) REFERENCES Branch(branch_id)
+);
+
+CREATE TABLE fixeddeposit_plans(
+   f_plan_id char(5) PRIMARY KEY ,
+   months varchar(10),
+   interest_rate numeric(5,2)
+);
+
+CREATE TABLE fixeddeposit(
+   fixed_deposit_id char(5) PRIMARY KEY ,
+   saving_account_id char(5) REFERENCES SavingsAccount(saving_account_id),
+   f_plan_id char(5) REFERENCES FixedDeposit_Plans(f_plan_id),
+   start_date timestamp,
+   end_date timestamp,
+   principal_amount numeric(12,2),
+   interest_payment_type boolean,
+   last_payout_date timestamp,
+   status boolean
+);
+
+CREATE TABLE accountholder(
+   holder_id char(5) PRIMARY KEY,
+   customer_id char(5)REFERENCES Customer(customer_id),
+   saving_account_id char(5) REFERENCES SavingsAccount(saving_account_id)
+);
+
+CREATE TYPE transtype AS ENUM('Interest','Withdrawal','Deposit');
+CREATE TABLE transactions(
+   transaction_id int AUTO_INCREMENT PRIMARY KEY,
+   ref_number VARCHAR(20) UNIQUE,
+   holder_id char(5) REFERENCES AccountHolder(holder_id),
+   type transtype,
+   amount numeric(12,2),
+   timestamp timestamp,
+   description varchar(255));
+
+-- Employee
+CREATE INDEX idx_employee_branch_id ON Employee(branch_id);
+
+-- Customer
+CREATE INDEX idx_customer_employee_id ON Customer(employee_id);
+
+-- Token
+CREATE INDEX idx_token_employee_id ON Token(employee_id);
+
+-- AccountHolder
+CREATE INDEX idx_holder_customer_id ON AccountHolder(customer_id);
+
+-- Transactions
+CREATE INDEX idx_transaction_holder_id ON Transactions(holder_id);
