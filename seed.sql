@@ -142,7 +142,7 @@ BEGIN
 
     IF p_type = 'Deposit' THEN
         new_balance := current_balance + p_amount;
-    ELSEIF p_type = 'Withdrawal' THEN
+    ELSIF p_type = 'Withdrawal' THEN
         IF current_balance > p_amount THEN
             new_balance := current_balance - p_amount;
         ELSE
@@ -160,3 +160,34 @@ BEGIN
     VALUES (current_holder_id, p_amount, p_type, p_description);
 END;
 $$;
+
+-- Auto assign transaction reference no
+CREATE SEQUENCE txn_ref_no START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE FUNCTION assign_ref_no()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE prefix TEXT;
+BEGIN
+    IF NEW.type = 'Deposit' THEN
+        prefix := 'DEP';
+    ELSIF NEW.type = 'Withdrawal' THEN
+        prefix := 'WDR';
+    ELSIF NEW.type = 'Transfer' THEN
+        prefix := 'TRF';
+    ELSIF NEW.type = 'Interest' THEN
+        prefix := 'INT';
+    ELSE
+        prefix := 'TXN';
+    END IF;
+
+    NEW.ref_no := prefix || '-' || TO_CHAR(NEW.timestamp, 'YYYYMMDD') || '-' || LPAD(NEXTVAL('txn_ref_no')::TEXT, 5, '0');
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER assign_ref_no_trigger
+BEFORE INSERT ON transactions
+FOR EACH ROW
+EXECUTE FUNCTION assign_ref_no();
