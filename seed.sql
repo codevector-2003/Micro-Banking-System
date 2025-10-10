@@ -113,3 +113,50 @@ CREATE INDEX idx_holder_customer_id ON AccountHolder(customer_id);
 
 -- Transactions
 CREATE INDEX idx_transaction_holder_id ON Transactions(holder_id);
+
+-- Update Transactions
+CREATE PROCEDURE make_transaction(
+    IN p_customer_id char(5),
+    IN p_saving_account_id char(5),
+    IN p_type transtype,
+    IN p_amount numeric(12,2),
+    IN p_description varchar(255),
+    OUT new_balance numeric(12,2)
+    )
+LANGUAGE plpgsql
+AS $$
+DECLARE current_balance numeric(12,2);
+DECLARE current_holder_id char(5);
+BEGIN
+    -- Get current balance
+    SELECT balance INTO current_balance
+    FROM savingsaccount
+    WHERE saving_account_id = p_saving_account_id;
+
+    -- Get current holder ID
+    SELECT holder_id INTO current_holder_id
+    FROM accountholder
+    JOIN savingsaccount
+    USING (saving_account_id)
+    WHERE accountholder.customer_id = p_customer_id AND savingsaccount.saving_account_id = p_saving_account_id;
+
+    IF p_type = 'Deposit' THEN
+        new_balance := current_balance + p_amount;
+    ELSEIF p_type = 'Withdrawal' THEN
+        IF current_balance > p_amount THEN
+            new_balance := current_balance - p_amount;
+        ELSE
+            RAISE EXCEPTION 'Insufficient balance';
+        END IF;
+    END IF;
+
+    -- Update balance
+    UPDATE savingsaccount
+    SET balance = new_balance
+    WHERE saving_account_id = p_saving_account_id;
+
+    -- Insert transaction
+    INSERT INTO transactions(holder_id, amount, type, description)
+    VALUES (current_holder_id, p_amount, p_type, p_description);
+END;
+$$;
