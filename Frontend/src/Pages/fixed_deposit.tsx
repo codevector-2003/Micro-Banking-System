@@ -203,6 +203,7 @@ const FixedDeposit: React.FC = () => {
           min-height: 100vh;
           font-family: Arial, sans-serif;
           padding: 0 20px;
+          background-color: #d1d7ddff;
         }
         .fd-header {
           display: flex;
