@@ -191,3 +191,34 @@ CREATE TRIGGER assign_ref_no_trigger
 BEFORE INSERT ON transactions
 FOR EACH ROW
 EXECUTE FUNCTION assign_ref_no();
+
+-- Multiple FD per savings account validation check
+CREATE PROCEDURE validate_multiple_FDS(
+    IN p_customer_id char(5),
+    OUT available_savings_account_id char(5)
+    )
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT ah.saving_account_id
+    INTO available_savings_account_id
+    FROM accountholder AS ah
+    LEFT JOIN fixeddeposit AS fd USING (saving_account_id)
+    WHERE ah.customer_id = p_customer_id
+      AND fd.fixed_deposit_id IS NULL
+      AND ah.saving_account_id IN (
+          SELECT saving_account_id
+          FROM accountholder
+          GROUP BY saving_account_id
+          HAVING COUNT(*) = 1
+      )
+    LIMIT 1;
+
+    IF available_savings_account_id IS NULL THEN
+        RAISE EXCEPTION 'No eligible savings account found for customer %', p_customer_id;
+    ELSE
+        RAISE NOTICE 'Eligible savings account: %', available_savings_account_id;
+    END IF;
+
+END;
+$$;
