@@ -222,3 +222,70 @@ BEGIN
 
 END;
 $$;
+
+-- Auto credit interest to FD accounts
+CREATE PROCEDURE credit_fd_int()
+LANGUAGE plpgsql
+AS $$
+DECLARE rec RECORD;
+DECLARE interest_amount numeric(12,2);
+DECLARE duration_months integer;
+BEGIN
+    FOR rec IN
+        SELECT fd.fixed_deposit_id,
+               fd.saving_account_id,
+               fd.f_plan_id,
+               fd.status,
+               fd.principal_amount,
+               fd.start_date,
+               fd.end_date,
+               fd.interest_payment_type,
+               fd.last_payout_date,
+               fp.interest_rate,
+               fp.months
+        FROM fixeddeposit AS fd
+        JOIN fixeddeposit_plans AS fp
+        USING (f_plan_id)
+        WHERE fd.status = TRUE
+        AND (fd.last_payout_date IS NULL OR fd.last_payout_date < NOW() - INTERVAL '1 month')
+    LOOP
+        -- Calculate duration in months since last payout or start
+        duration_months := EXTRACT(MONTH FROM AGE(NOW(), COALESCE(rec.last_payout_date, rec.start_date)));
+
+        -- Calculate monthly interest amount
+        interest_amount := (rec.principal_amount * (rec.interest_rate / 100)) / 12;
+
+        IF (rec.end_date <= NOW()) THEN
+            -- Maturity payout to savings account
+            CALL make_transaction(
+                (SELECT customer_id FROM accountholder WHERE saving_account_id = rec.saving_account_id LIMIT 1),
+                rec.saving_account_id,
+                'Interest',
+                rec.principal_amount + (interest_amount * CAST(SPLIT_PART(rec.months, ' ', 1) AS INTEGER)),
+                'FD Maturity Payout',
+                new_balance
+            );
+
+            -- Close the FD
+            UPDATE fixeddeposit
+            SET status = FALSE
+            WHERE fixed_deposit_id = rec.fixed_deposit_id;
+        ELSIF (rec.interest_payment_type = TRUE AND duration_months >= 1) THEN
+            -- Payout interest to savings account
+            CALL make_transaction(
+                (SELECT customer_id FROM accountholder WHERE saving_account_id = rec.saving_account_id LIMIT 1),
+                rec.saving_account_id,
+                'Interest',
+                interest_amount * duration_months,
+                'FD Interest Payout',
+                new_balance
+            );
+
+            -- Update last_payout_date to today
+            UPDATE fixeddeposit
+            SET last_payout_date = NOW()
+            WHERE fixed_deposit_id = rec.fixed_deposit_id;
+        END IF;
+    END LOOP;
+END;
+$$;
