@@ -7,7 +7,6 @@ from schemas import AccountHolderCreate, AccountHolderRead
 router = APIRouter()
 
 
-@router.post("/account-holder", response_model=AccountHolderRead)
 def create_account_holder(holder: AccountHolderCreate, conn=Depends(get_db), current_user=Depends(get_current_user)) -> AccountHolderRead:
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
