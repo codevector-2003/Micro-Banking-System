@@ -255,3 +255,25 @@ CREATE TRIGGER holder_id_trigger
 BEFORE INSERT ON AccountHolder
 FOR EACH ROW
 EXECUTE FUNCTION set_holder_id();
+
+
+-- Trigger to generate unique 10-digit holder_id
+CREATE OR REPLACE FUNCTION generate_fd_id()
+RETURNS TEXT AS $$
+DECLARE
+    new_id TEXT;
+BEGIN
+    LOOP
+        -- Generate a random 10-character FD ID
+        new_id := 'FD' || lpad((floor(random() * 1e8))::text, 8, '0');
+        -- Ensure uniqueness
+        EXIT WHEN NOT EXISTS (SELECT 1 FROM FixedDeposit WHERE fixed_deposit_id = new_id);
+    END LOOP;
+    RETURN new_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER fd_id_trigger
+BEFORE INSERT ON FixedDeposit
+FOR EACH ROW
+EXECUTE FUNCTION generate_fd_id();
