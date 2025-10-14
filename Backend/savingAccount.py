@@ -1,7 +1,7 @@
 # Change account status function
 from psycopg2.extras import RealDictCursor
 from schemas import SavingsAccountCreate, SavingsAccountRead, AccountStatusRequest, SavingsAccountWithCustomerRead
-from schemas import AccountHolderCreate
+from schemas import AccountHolderCreate, SavingsAccountPlansRead
 from fastapi import HTTPException, APIRouter, Depends
 from database import get_db
 from auth import get_current_user
@@ -12,6 +12,23 @@ from pydantic import BaseModel
 
 
 router = APIRouter()
+
+
+@router.get("/plans", response_model=list[SavingsAccountPlansRead])
+def get_savings_plans(conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """Get all available savings account plans"""
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT s_plan_id, plan_name, interest_rate, min_balance
+                FROM SavingsAccount_Plans
+                ORDER BY s_plan_id
+            """)
+            rows = cursor.fetchall()
+            return [SavingsAccountPlansRead(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.post("/saving-account", response_model=SavingsAccountRead)
@@ -149,5 +166,32 @@ def search_saving_accounts(query: dict, conn=Depends(get_db), current_user=Depen
 
     except Exception as e:
         conn.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/holder/{saving_account_id}")
+def get_account_holder(saving_account_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """Get the holder_id for a given saving_account_id"""
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT holder_id, customer_id
+                FROM AccountHolder
+                WHERE saving_account_id = %s
+                LIMIT 1
+            """, (saving_account_id,))
+            result = cursor.fetchone()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail="Account holder not found")
+
+            return {
+                "holder_id": result['holder_id'],
+                "customer_id": result['customer_id'],
+                "saving_account_id": saving_account_id
+            }
+    except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")

@@ -15,7 +15,7 @@ def create_joint_account(joint_account: JointAccountCreate, conn=Depends(get_db)
     Create a joint account by creating a new savings account and linking two customers to it.
     Only agents can create joint accounts.
     """
-    user_type = current_user.get("user_type", "").lower()
+    user_type = current_user.get('type').lower()
     if user_type != "agent":
         raise HTTPException(
             status_code=403, detail="Only agents can create joint accounts.")
@@ -153,11 +153,24 @@ def list_joint_accounts(conn=Depends(get_db), current_user=Depends(get_current_u
     """
     List all joint accounts. Branch managers see only their branch accounts.
     """
-    user_type = current_user.get("user_type", "").lower()
+    user_type = current_user.get("type", "").lower()
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             if user_type == "branch_manager":
+                # Get branch_id from employee table
+                employee_id = current_user.get("employee_id")
+                cursor.execute(
+                    "SELECT branch_id FROM Employee WHERE employee_id = %s",
+                    (employee_id,)
+                )
+                branch_row = cursor.fetchone()
+                if not branch_row or not branch_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned"
+                    )
+                user_branch_id = branch_row['branch_id']
+
                 # Branch managers see only their branch accounts
                 cursor.execute("""
                     SELECT DISTINCT sa.saving_account_id
@@ -166,7 +179,7 @@ def list_joint_accounts(conn=Depends(get_db), current_user=Depends(get_current_u
                     WHERE sa.branch_id = %s AND sa.status = true
                     GROUP BY sa.saving_account_id
                     HAVING COUNT(ah.holder_id) >= 2
-                """, (current_user.get("branch_id"),))
+                """, (user_branch_id,))
             else:
                 # Admins see all joint accounts
                 cursor.execute("""

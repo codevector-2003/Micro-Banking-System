@@ -2,8 +2,6 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from auth import get_current_user
 from database import get_db
-from schemas import TransactionsCreate, Trantype
-from transaction import create_transaction
 from fastapi import APIRouter, Depends, HTTPException
 from schemas import FixedDepositCreate, FixedDepositRead, AccountSearchRequest, FixedDepositPlanCreate, FixedDepositPlanRead
 
@@ -17,11 +15,31 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
     Only agents and branch managers can create fixed deposits.
     The principal amount will be deducted from the savings account balance.
     """
-    user_type = current_user.get("user_type").lower()
+    user_type = current_user.get("type")
+    if not user_type:
+        raise HTTPException(status_code=401, detail="Invalid user type")
+    user_type = user_type.lower()
     if user_type not in ["agent", "branch_manager"]:
         raise HTTPException(status_code=403, detail="Operation not permitted")
+
+    employee_id = current_user.get("employee_id")
+
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get branch_id from employee table if needed for branch manager
+            user_branch_id = None
+            if user_type == 'branch_manager':
+                cursor.execute(
+                    "SELECT branch_id FROM Employee WHERE employee_id = %s",
+                    (employee_id,)
+                )
+                branch_row = cursor.fetchone()
+                if not branch_row or not branch_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned"
+                    )
+                user_branch_id = branch_row['branch_id']
+
             # Verify savings account exists and get its details
             cursor.execute("""
                 SELECT sa.saving_account_id, sa.balance, sa.status, sa.branch_id, sa.employee_id
@@ -33,10 +51,10 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
             if not account:
                 raise HTTPException(
                     status_code=400, detail="Invalid or inactive saving_account_id")
-            if user_type == 'agent' and account['employee_id'] != current_user.get("employee_id"):
+            if user_type == 'agent' and account['employee_id'] != employee_id:
                 raise HTTPException(
                     status_code=403, detail="Agents can only create fixed deposits for their own accounts")
-            if user_type == 'branch_manager' and account['branch_id'] != current_user.get("branch_id"):
+            if user_type == 'branch_manager' and account['branch_id'] != user_branch_id:
                 raise HTTPException(
                     status_code=403, detail="Branch managers can only create fixed deposits for accounts in their branch")
 
@@ -103,6 +121,13 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
                     detail="Failed to create fixed deposit"
                 )
 
+            # Check if account has sufficient funds for the fixed deposit
+            if account['balance'] < principal_amount:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient funds: Account balance is {account['balance']}, but {principal_amount} is required for the fixed deposit."
+                )
+
             # Deduct amount from savings account
             new_balance = account['balance'] - principal_amount
             cursor.execute("""
@@ -110,6 +135,8 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
                 SET balance = %s 
                 WHERE saving_account_id = %s
             """, (new_balance, fixed_deposit.saving_account_id))
+
+            # Get holder_id for transaction record
             cursor.execute("""
                 SELECT holder_id FROM AccountHolder WHERE saving_account_id = %s LIMIT 1
             """, (fixed_deposit.saving_account_id,))
@@ -119,15 +146,18 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
                     status_code=400, detail="No holder found for this account")
             holder_id = holder_row['holder_id']
 
-            transaction_data = TransactionsCreate(
-                holder_id=holder_id,
-                type=Trantype.withdrawal,
-                amount=principal_amount,
-                timestamp=None,
-                description="Fixed deposit principal deduction"
-            )
-            # Use the same DB connection and user
-            create_transaction(transaction_data, conn, current_user)
+            # Create withdrawal transaction directly (bypassing minimum balance check for FD)
+            cursor.execute("""
+                INSERT INTO Transactions (holder_id, type, amount, timestamp, description)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING transaction_id, holder_id, type, amount, timestamp, ref_number, description
+            """, (
+                holder_id,
+                'Withdrawal',
+                principal_amount,
+                datetime.now(),
+                "Fixed deposit principal deduction"
+            ))
 
             conn.commit()
             return FixedDepositRead(**fd_row)
@@ -181,7 +211,7 @@ def create_fixed_deposit_plan(plan: FixedDepositPlanCreate, conn=Depends(get_db)
     """
     Create a new fixed deposit plan. Only admins can access this endpoint.
     """
-    user_type = current_user.get("user_type", "").lower()
+    user_type = current_user.get("type", "").lower()
     if user_type != "admin":
         raise HTTPException(
             status_code=403, detail="Only admins can create fixed deposit plans.")

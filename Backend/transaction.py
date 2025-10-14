@@ -1,6 +1,6 @@
 from psycopg2.extras import RealDictCursor
 from fastapi import APIRouter, Depends, HTTPException
-from schemas import TransactionsCreate, TransactionsRead, Trantype, AccountSearchRequest
+from schemas import TransactionsCreate, TransactionsRead, TransactionsSearchResult, Trantype, AccountSearchRequest
 from database import get_db
 from auth import get_current_user
 from datetime import date
@@ -68,7 +68,7 @@ def create_transaction(transaction: TransactionsCreate, conn=Depends(get_db), cu
             status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.post("/transaction/search", response_model=list[TransactionsRead])
+@router.post("/transaction/search", response_model=list[TransactionsSearchResult])
 def search_transactions_by_account(
     request: AccountSearchRequest,
     conn=Depends(get_db),
@@ -91,15 +91,19 @@ def search_transactions_by_account(
 
             holder_ids = [h['holder_id'] for h in holders]
 
-            # Get transactions for all holder_ids
+            # Get transactions for all holder_ids with saving_account_id
             cursor.execute("""
-                SELECT transaction_id, holder_id, type, amount, timestamp, ref_number, description
-                FROM Transactions
-                WHERE holder_id = ANY(%s)
-                ORDER BY timestamp DESC
+                SELECT t.transaction_id, t.holder_id, t.type, t.amount, t.timestamp, t.ref_number, t.description,
+                       hbm.saving_account_id
+                FROM Transactions t
+                JOIN holder_balance_min hbm ON t.holder_id = hbm.holder_id
+                WHERE t.holder_id = ANY(%s)
+                ORDER BY t.timestamp DESC
             """, (holder_ids,))
             transactions = cursor.fetchall()
-            return [TransactionsRead(**tx) for tx in transactions]
+
+            # Convert to TransactionsSearchResult format
+            return [TransactionsSearchResult(**dict(tx)) for tx in transactions]
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")

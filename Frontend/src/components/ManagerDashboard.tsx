@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { LogOut, Users, TrendingUp, UserPlus, FileText, Building2 } from 'lucide-react';
 import { Progress } from './ui/progress';
 
@@ -67,7 +67,7 @@ export function ManagerDashboard() {
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl text-gray-900">Branch Manager Dashboard</h1>
-                <p className="text-sm text-gray-500">Welcome, {user?.username} - Branch {user?.branchId}</p>
+                <p className="text-sm text-gray-500">Welcome, {user?.username} - Employee ID: {user?.employeeId || 'N/A'}</p>
               </div>
             </div>
             <Button onClick={logout} variant="outline" size="sm">
@@ -160,7 +160,7 @@ export function ManagerDashboard() {
                           {agent.status}
                         </Badge>
                       </div>
-                      
+
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-gray-600">Customers</p>
@@ -175,7 +175,7 @@ export function ManagerDashboard() {
                           <p className="font-medium">${(agent.totalVolume / 1000).toFixed(0)}K</p>
                         </div>
                       </div>
-                      
+
                       <div className="mt-3">
                         <div className="flex justify-between text-sm">
                           <span>Performance Score</span>
@@ -248,7 +248,7 @@ export function ManagerDashboard() {
                     <UserPlus className="h-4 w-4 mr-2" />
                     Add New Agent
                   </Button>
-                  
+
                   <div className="space-y-3">
                     {mockAgents.map((agent) => (
                       <div key={agent.id} className="flex justify-between items-center p-3 border rounded">

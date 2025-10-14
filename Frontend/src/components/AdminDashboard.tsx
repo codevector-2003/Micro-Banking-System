@@ -5,9 +5,10 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { LogOut, Building, Settings, BarChart3, RefreshCw, Plus, Edit, Trash2, Building2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { ConnectionTest } from './ConnectionTest';
 
 // Mock data for admin dashboard
 const mockBranches = [
@@ -142,11 +143,12 @@ export function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="branches" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="branches">Branch Management</TabsTrigger>
             <TabsTrigger value="settings">System Settings</TabsTrigger>
             <TabsTrigger value="reports">Global Reports</TabsTrigger>
             <TabsTrigger value="interest">Interest Processing</TabsTrigger>
+            <TabsTrigger value="connection">Connection Test</TabsTrigger>
           </TabsList>
 
           {/* Branch Management */}
@@ -183,7 +185,7 @@ export function AdminDashboard() {
                           </Button>
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-4 gap-4 text-sm">
                         <div>
                           <p className="text-gray-600">Employees</p>
@@ -446,7 +448,7 @@ export function AdminDashboard() {
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Run Interest Processing
                     </Button>
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                       <Button variant="outline">
                         Preview Interest Calculations
@@ -479,6 +481,21 @@ export function AdminDashboard() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Connection Test */}
+          <TabsContent value="connection" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Backend Connection Test</CardTitle>
+                <CardDescription>
+                  Test the connection between frontend and backend API
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ConnectionTest />
               </CardContent>
             </Card>
           </TabsContent>

@@ -53,7 +53,7 @@ def search_customers(search_request: CustomerSearchRequest, conn=Depends(get_db)
     Supports search by customer_id, nic, name, or phone_number.
     """
     # Security: Check user permissions
-    if current_user.get('type') not in ['admin', 'agent']:
+    if current_user.get('type').lower() not in ['admin', 'agent']:
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to search customers")
 

@@ -200,6 +200,11 @@ class TransactionsCreate(BaseModel):
 class TransactionsRead(TransactionsCreate):
     transaction_id: int
 
+
+class TransactionsSearchResult(TransactionsRead):
+    """Extended transaction model for search results that includes saving_account_id"""
+    saving_account_id: str = Field(max_length=10)
+
 # Security: Secure request models for customer operations
 
 

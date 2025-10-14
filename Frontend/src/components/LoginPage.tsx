@@ -2,30 +2,33 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { useAuth } from '../App';
-import { Building2, User, Lock } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Building2, User, Lock, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('');
-  const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, error } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
 
-    if (!username || !password || !role) {
-      setError('Please fill in all fields');
+    if (!username || !password) {
       return;
     }
 
-    const success = login(username, password, role);
-    if (!success) {
-      setError('Invalid credentials');
+    try {
+      setIsSubmitting(true);
+      await login(username, password);
+      // Login successful - user will be redirected automatically by App component
+    } catch (error) {
+      // Error is already handled by AuthContext and displayed via error state
+      console.error('Login failed:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -54,10 +57,12 @@ export function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="pl-10"
+                  required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -69,40 +74,40 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
+                  required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Agent">Agent</SelectItem>
-                  <SelectItem value="Branch Manager">Branch Manager</SelectItem>
-                  <SelectItem value="Admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            <Button type="submit" className="w-full">
-              Sign In
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isSubmitting || !username || !password}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Signing In...
+                </>
+              ) : (
+                'Sign In'
+              )}
             </Button>
           </form>
 
           <div className="mt-6 p-4 bg-gray-50 rounded text-sm">
-            <p className="text-gray-600 mb-2">Demo Credentials:</p>
-            <p>Username: demo | Password: demo123</p>
+            <p className="text-gray-600 mb-2">Backend Connection:</p>
+            <p className="text-xs">API Base URL: http://localhost:8000</p>
             <p className="text-xs text-gray-500 mt-2">
-              Select any role to explore the dashboard
+              Make sure the backend server is running on port 8000
             </p>
           </div>
         </CardContent>

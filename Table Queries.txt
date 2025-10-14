@@ -261,6 +261,32 @@ EXECUTE FUNCTION set_holder_id();
 
 
 
+-- Trigger to generate unique 10-digit fixed_deposit_id
+CREATE OR REPLACE FUNCTION set_fixed_deposit_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_id TEXT;
+BEGIN
+    IF NEW.fixed_deposit_id IS NULL THEN
+        LOOP
+            -- Generate a random 10-digit number as text
+            new_id := lpad((floor(random() * 1e10))::text, 10, '0');
+            -- Ensure uniqueness
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM FixedDeposit WHERE fixed_deposit_id = new_id);
+        END LOOP;
+        NEW.fixed_deposit_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER fixed_deposit_id_trigger
+BEFORE INSERT ON FixedDeposit
+FOR EACH ROW
+EXECUTE FUNCTION set_fixed_deposit_id();
+
+
+
 -- 1. Create the trigger to make unique 10 digit transaction id
 CREATE OR REPLACE FUNCTION set_transaction_id()
 RETURNS TRIGGER AS $$
@@ -311,3 +337,33 @@ CREATE TRIGGER ref_number_trigger
 BEFORE INSERT ON Transactions
 FOR EACH ROW
 EXECUTE FUNCTION set_ref_number();
+
+
+CREATE OR REPLACE FUNCTION get_accounts_pending_monthly_interest(month INT, year INT)
+RETURNS TABLE (
+    saving_account_id CHAR(10),
+    balance NUMERIC(12,2),
+    open_date TIMESTAMP,
+    interest_rate CHAR(5),
+    plan_name STYPE,
+    min_balance NUMERIC(12,2)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT sa.saving_account_id, sa.balance, sa.open_date,
+           sap.interest_rate, sap.plan_name, sap.min_balance
+    FROM SavingsAccount sa
+    JOIN SavingsAccount_Plans sap ON sa.s_plan_id = sap.s_plan_id
+    WHERE sa.status = true 
+      AND sa.balance >= sap.min_balance
+      AND NOT EXISTS (
+          SELECT 1 FROM Transactions t
+          JOIN AccountHolder ah ON t.holder_id = ah.holder_id
+          WHERE ah.saving_account_id = sa.saving_account_id
+            AND t.type = 'Interest'
+            AND t.description LIKE 'Monthly savings account interest%'
+            AND EXTRACT(MONTH FROM t.timestamp) = month
+            AND EXTRACT(YEAR FROM t.timestamp) = year
+      );
+END;
+$$ LANGUAGE plpgsql;
