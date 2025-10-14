@@ -106,4 +106,20 @@ JOIN AccountHolder ah ON c.customer_id = ah.customer_id
 JOIN Transactions t ON ah.holder_id = t.holder_id
 GROUP BY c.customer_id, c.name;
 
+--search saving accounts get details
+CREATE OR REPLACE VIEW savings_account_with_customer AS
+SELECT
+    sa.saving_account_id,
+    sa.open_date,
+    sa.balance,
+    sa.employee_id,
+    sa.s_plan_id,
+    sa.status,
+    sa.branch_id,
+    c.customer_id,
+    c.name AS customer_name,
+    c.nic AS customer_nic
+FROM SavingsAccount sa
+JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
+JOIN Customer c ON ah.customer_id = c.customer_id;
 

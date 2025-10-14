@@ -220,3 +220,17 @@ class CustomerStatusRequest(BaseModel):
     """Secure status update request model for customer status operations"""
     customer_id: str = Field(max_length=10)
     status: bool
+
+
+class SavingsAccountWithCustomerRead(BaseModel):
+    saving_account_id: str = Field(max_length=10)
+    open_date: datetime
+    balance: Decimal = Field(decimal_places=2)
+    employee_id: str = Field(max_length=10)
+    s_plan_id: str = Field(max_length=5)
+    status: bool
+    branch_id: Optional[str] = Field(
+        default=None, max_length=7)  # <-- Make optional
+    customer_id: str = Field(max_length=10)
+    customer_name: str = Field(max_length=50)
+    customer_nic: str = Field(max_length=12)

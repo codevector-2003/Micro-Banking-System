@@ -1,6 +1,6 @@
 # Change account status function
 from psycopg2.extras import RealDictCursor
-from schemas import SavingsAccountCreate, SavingsAccountRead, AccountStatusRequest
+from schemas import SavingsAccountCreate, SavingsAccountRead, AccountStatusRequest, SavingsAccountWithCustomerRead
 from schemas import AccountHolderCreate
 from fastapi import HTTPException, APIRouter, Depends
 from database import get_db
@@ -94,58 +94,58 @@ def create_saving_account(account: SavingsAccountCreate, customer_id: str, conn=
             status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.post("/saving-account/search", response_model=list[SavingsAccountRead])
-def search_saving_accounts(query: dict, conn=Depends(get_db), current_user=Depends):
+@router.post("/saving-account/search", response_model=list[SavingsAccountWithCustomerRead])
+def search_saving_accounts(query: dict, conn=Depends(get_db), current_user=Depends(get_current_user)):
     """
-    Search savings accounts by various criteria.
-
-    You can filter by:
-    - saving_account_id
-    - employee_id
-    - s_plan_id
-    - status
-    - branch_id
-
-    Agents can only search for accounts assigned to themselves.
-    Branch managers can search all accounts in their branch.
-    Admins can search all accounts.
-    Provide any combination of fields in the request body to filter results.
+    Search savings accounts by NIC, customer_id, or saving_account_id using the savings_account_with_customer view.
+    Agents see only their customers' accounts.
+    Managers see only accounts in their branch.
+    Admins see all accounts.
     """
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            base_query = "SELECT saving_account_id, open_date, balance, employee_id, s_plan_id, status, branch_id FROM SavingsAccount WHERE 1=1"
+            user_type = current_user.get('type').lower()
+            employee_id = current_user.get('employee_id')
+
+            base_query = """
+                SELECT saving_account_id, open_date, balance, employee_id, s_plan_id, status, branch_id,
+                       customer_id, customer_name, customer_nic
+                FROM savings_account_with_customer
+                WHERE 1=1
+            """
             params = []
 
-            user_type = current_user.get('type').lower()
-            # If agent, restrict to their own accounts
+            # Agent: only accounts for their customers
             if user_type == 'agent':
                 base_query += " AND employee_id = %s"
-                params.append(current_user.get('employee_id'))
-            # If branch manager, restrict to their branch
-            elif user_type == 'branch_manager':
-                base_query += " AND branch_id = %s"
-                params.append(current_user.get('branch_id'))
+                params.append(employee_id)
 
-            # Add filters based on provided query fields
+            # Manager: only accounts in their branch
+            elif user_type == 'branch_manager':
+                cursor.execute(
+                    "SELECT branch_id FROM Employee WHERE employee_id = %s", (employee_id,))
+                branch_row = cursor.fetchone()
+                if not branch_row or not branch_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Manager does not have a branch assigned")
+                branch_id = branch_row['branch_id']
+                base_query += " AND branch_id = %s"
+                params.append(branch_id)
+
+            # Filters
+            if 'nic' in query:
+                base_query += " AND customer_nic = %s"
+                params.append(query['nic'])
+            if 'customer_id' in query:
+                base_query += " AND customer_id = %s"
+                params.append(query['customer_id'])
             if 'saving_account_id' in query:
                 base_query += " AND saving_account_id = %s"
                 params.append(query['saving_account_id'])
-            if 'employee_id' in query:
-                base_query += " AND employee_id = %s"
-                params.append(query['employee_id'])
-            if 's_plan_id' in query:
-                base_query += " AND s_plan_id = %s"
-                params.append(query['s_plan_id'])
-            if 'status' in query:
-                base_query += " AND status = %s"
-                params.append(query['status'])
-            if 'branch_id' in query:
-                base_query += " AND branch_id = %s"
-                params.append(query['branch_id'])
 
             cursor.execute(base_query, tuple(params))
             rows = cursor.fetchall()
-            return [SavingsAccountRead(**row) for row in rows]
+            return [SavingsAccountWithCustomerRead(**row) for row in rows]
 
     except Exception as e:
         conn.rollback()
