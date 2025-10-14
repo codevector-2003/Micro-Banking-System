@@ -159,7 +159,7 @@ class FixedDepositPlansRead(FixedDepositPlansCreate):
 
 class FixedDepositCreate(BaseModel):
     saving_account_id: str = Field(max_length=10)
-    f_plan_id: str = Field(max_length=5)
+    fd_plan_id: str = Field(max_length=5)
     start_date: datetime
     end_date: datetime
     principal_amount: Decimal = Field(decimal_places=2)
