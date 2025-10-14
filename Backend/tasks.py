@@ -30,6 +30,114 @@ def get_admin_user():
     }
 
 
+def auto_calculate_savings_account_interest():
+    """
+    Automatically calculate and pay interest for all active savings accounts.
+    This function runs monthly and calculates interest based on current balance.
+    Uses transactions to track if interest was already paid for the current month.
+    """
+    try:
+        import psycopg2
+        from database import DATABASE_CONFIG
+        conn = psycopg2.connect(**DATABASE_CONFIG)
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            current_date = datetime.now()
+            current_month = current_date.month
+            current_year = current_date.year
+
+            logger.info(
+                f"Starting automatic savings account interest calculation at {current_date}")
+
+            # Get all active savings accounts with their plan details
+            cursor.execute("""
+                SELECT sa.saving_account_id, sa.balance, sa.open_date,
+                       sap.interest_rate, sap.plan_name, sap.min_balance
+                FROM SavingsAccount sa
+                JOIN SavingsAccount_Plans sap ON sa.s_plan_id = sap.s_plan_id
+                WHERE sa.status = true AND sa.balance >= sap.min_balance
+            """)
+
+            savings_accounts = cursor.fetchall()
+            processed_count = 0
+            total_interest_paid = Decimal('0.00')
+
+            for account in savings_accounts:
+                # Check if interest was already paid for this month
+                cursor.execute("""
+                    SELECT COUNT(*) as count FROM Transactions t
+                    JOIN AccountHolder ah ON t.holder_id = ah.holder_id
+                    WHERE ah.saving_account_id = %s 
+                    AND t.type = 'Interest'
+                    AND t.description LIKE 'Monthly savings account interest%%'
+                    AND EXTRACT(MONTH FROM t.timestamp) = %s
+                    AND EXTRACT(YEAR FROM t.timestamp) = %s
+                """, (account['saving_account_id'], current_month, current_year))
+
+                interest_already_paid = cursor.fetchone()['count'] > 0
+
+                if not interest_already_paid:
+                    # Convert interest rate from string (e.g., "12") to decimal
+                    interest_rate_str = account['interest_rate'].replace(
+                        '%', '').strip()
+                    annual_interest_rate = Decimal(
+                        interest_rate_str) / Decimal('100')
+
+                    # Calculate monthly interest rate (annual rate / 12)
+                    monthly_interest_rate = annual_interest_rate / \
+                        Decimal('12')
+
+                    # Calculate monthly interest based on current balance
+                    interest_amount = account['balance'] * \
+                        monthly_interest_rate
+
+                    if interest_amount > 0:
+                        # Get a holder for this account (use first one if joint)
+                        cursor.execute("""
+                            SELECT holder_id FROM AccountHolder WHERE saving_account_id = %s LIMIT 1
+                        """, (account['saving_account_id'],))
+                        holder_row = cursor.fetchone()
+
+                        if holder_row:
+                            # Add interest to savings account balance
+                            cursor.execute("""
+                                UPDATE SavingsAccount 
+                                SET balance = balance + %s
+                                WHERE saving_account_id = %s
+                            """, (interest_amount, account['saving_account_id']))
+
+                            # Create interest transaction directly in database
+                            cursor.execute("""
+                                INSERT INTO Transactions (holder_id, type, amount, timestamp, description)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (
+                                holder_row['holder_id'],
+                                'Interest',
+                                interest_amount,
+                                current_date,
+                                f"Monthly savings account interest - {current_month:02d}/{current_year} - Account: {account['saving_account_id']}"
+                            ))
+
+                            processed_count += 1
+                            total_interest_paid += interest_amount
+
+                            logger.info(
+                                f"Processed Account {account['saving_account_id']}: Interest {interest_amount}")
+
+        conn.commit()
+        logger.info(
+            f"Savings account interest calculation completed: {processed_count} accounts, Total interest: {total_interest_paid}")
+
+    except Exception as e:
+        logger.error(
+            f"Error in automatic savings account interest calculation: {str(e)}")
+        if 'conn' in locals():
+            conn.rollback()
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+
 def auto_calculate_fixed_deposit_interest():
     """
     Automatically calculate and pay interest for all active fixed deposits.
@@ -244,9 +352,17 @@ def run_daily_tasks():
     while scheduler_running:
         current_time = datetime.now()
 
-        # Check if it's 00:01 AM (interest calculation time)
+        # Check if it's 00:01 AM (savings account interest calculation time)
         if current_time.hour == 0 and current_time.minute == 1:
-            logger.info("Running scheduled interest calculation")
+            logger.info(
+                "Running scheduled savings account interest calculation")
+            auto_calculate_savings_account_interest()
+            # Sleep for 1 minute to avoid running multiple times
+            time.sleep(60)
+
+        # Check if it's 00:03 AM (fixed deposit interest calculation time)
+        elif current_time.hour == 0 and current_time.minute == 3:
+            logger.info("Running scheduled fixed deposit interest calculation")
             auto_calculate_fixed_deposit_interest()
             # Sleep for 1 minute to avoid running multiple times
             time.sleep(60)
@@ -265,7 +381,10 @@ def run_daily_tasks():
 def start_automatic_tasks():
     """
     Start the automatic interest calculation scheduler.
-    Runs daily at 00:01 AM to check for interest payments and matured deposits.
+    Runs daily at:
+    - 00:01 AM: Savings account interest calculation
+    - 00:03 AM: Fixed deposit interest calculation  
+    - 00:05 AM: Fixed deposit maturity processing
     """
     global scheduler_running, scheduler_thread
     if not scheduler_running:
@@ -277,7 +396,7 @@ def start_automatic_tasks():
         scheduler_thread.start()
 
         logger.info(
-            "Automatic fixed deposit tasks started - runs daily at 00:01 AM")
+            "Automatic tasks started - Savings (00:01), FD Interest (00:03), FD Maturity (00:05)")
         return {"message": "Automatic tasks started successfully"}
     else:
         return {"message": "Automatic tasks already running"}
@@ -331,10 +450,118 @@ def get_automatic_tasks_status(current_user=Depends(get_current_user)):
 
     return {
         "scheduler_running": scheduler_running,
-        "next_interest_calculation": "Daily at 00:01 AM" if scheduler_running else "Not scheduled",
+        "next_savings_interest_calculation": "Daily at 00:01 AM" if scheduler_running else "Not scheduled",
+        "next_fd_interest_calculation": "Daily at 00:03 AM" if scheduler_running else "Not scheduled",
         "next_maturity_processing": "Daily at 00:05 AM" if scheduler_running else "Not scheduled",
         "current_time": datetime.now().isoformat()
     }
+
+
+@router.post("/calculate-savings-account-interest")
+def calculate_savings_account_interest(conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Calculate and pay interest for all active savings accounts monthly.
+    Only admins can trigger this calculation.
+    Interest is calculated based on current balance and only pays once per month.
+    """
+    user_type = current_user.get("type").lower()
+    if user_type != "admin":
+        raise HTTPException(
+            status_code=403, detail="Only admins can calculate savings account interest.")
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            current_date = datetime.now()
+            current_month = current_date.month
+            current_year = current_date.year
+
+            # Get all active savings accounts with their plan details
+            cursor.execute("""
+                SELECT sa.saving_account_id, sa.balance, sa.open_date,
+                       sap.interest_rate, sap.plan_name, sap.min_balance
+                FROM SavingsAccount sa
+                JOIN SavingsAccount_Plans sap ON sa.s_plan_id = sap.s_plan_id
+                WHERE sa.status = true AND sa.balance >= sap.min_balance
+            """)
+
+            savings_accounts = cursor.fetchall()
+            processed_count = 0
+            total_interest_paid = Decimal('0.00')
+
+            for account in savings_accounts:
+                # Check if interest was already paid for this month
+                cursor.execute("""
+                    SELECT COUNT(*) as count FROM Transactions t
+                    JOIN AccountHolder ah ON t.holder_id = ah.holder_id
+                    WHERE ah.saving_account_id = %s 
+                    AND t.type = 'Interest'
+                    AND t.description LIKE 'Monthly savings account interest%%'
+                    AND EXTRACT(MONTH FROM t.timestamp) = %s
+                    AND EXTRACT(YEAR FROM t.timestamp) = %s
+                """, (account['saving_account_id'], current_month, current_year))
+
+                interest_already_paid = cursor.fetchone()['count'] > 0
+
+                if not interest_already_paid:
+                    # Convert interest rate from string (e.g., "12") to decimal
+                    interest_rate_str = account['interest_rate'].replace(
+                        '%', '').strip()
+                    annual_interest_rate = Decimal(
+                        interest_rate_str) / Decimal('100')
+
+                    # Calculate monthly interest rate (annual rate / 12)
+                    monthly_interest_rate = annual_interest_rate / \
+                        Decimal('12')
+
+                    # Calculate monthly interest based on current balance
+                    interest_amount = account['balance'] * \
+                        monthly_interest_rate
+
+                    if interest_amount > 0:
+                        # Get a holder for this account (use first one if joint)
+                        cursor.execute("""
+                            SELECT holder_id FROM AccountHolder WHERE saving_account_id = %s LIMIT 1
+                        """, (account['saving_account_id'],))
+                        holder_row = cursor.fetchone()
+
+                        if holder_row:
+                            # Add interest to savings account balance
+                            cursor.execute("""
+                                UPDATE SavingsAccount 
+                                SET balance = balance + %s
+                                WHERE saving_account_id = %s
+                            """, (interest_amount, account['saving_account_id']))
+
+                            # Create interest transaction
+                            transaction_data = TransactionsCreate(
+                                holder_id=holder_row['holder_id'],
+                                type=Trantype.interest,
+                                amount=interest_amount,
+                                timestamp=current_date,
+                                description=f"Monthly savings account interest - {current_month:02d}/{current_year} - Account: {account['saving_account_id']}"
+                            )
+
+                            # Record the transaction
+                            create_transaction(
+                                transaction_data, conn, current_user)
+
+                            processed_count += 1
+                            total_interest_paid += interest_amount
+
+            conn.commit()
+
+            return {
+                "message": "Savings account interest calculation completed successfully",
+                "processed_accounts": processed_count,
+                "total_interest_paid": float(total_interest_paid),
+                "calculation_date": current_date.isoformat(),
+                "month_year": f"{current_month:02d}/{current_year}"
+            }
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.post("/calculate-fixed-deposit-interest")
@@ -541,6 +768,65 @@ def mature_fixed_deposits(conn=Depends(get_db), current_user=Depends(get_current
 
     except Exception as e:
         conn.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/savings-account-interest-report")
+def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Generate a report showing savings accounts that haven't received interest this month.
+    """
+    user_type = current_user.get("type").lower()
+    if user_type not in ["admin", "branch_manager"]:
+        raise HTTPException(
+            status_code=403, detail="Only admins and branch managers can view interest reports.")
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            current_date = datetime.now()
+            current_month = current_date.month
+            current_year = current_date.year
+
+            # Get savings accounts that haven't received interest this month
+            cursor.execute(
+                "SELECT * FROM get_accounts_pending_monthly_interest(%s, %s)", (current_month, current_year))
+
+            pending_accounts = cursor.fetchall()
+
+            # Calculate potential interest for each
+            report_data = []
+            total_potential_interest = Decimal('0.00')
+
+            for account in pending_accounts:
+                # Calculate interest
+                interest_rate_str = account['interest_rate'].replace(
+                    '%', '').strip()
+                annual_interest_rate = Decimal(
+                    interest_rate_str) / Decimal('100')
+                monthly_interest_rate = annual_interest_rate / Decimal('12')
+                potential_interest = account['balance'] * monthly_interest_rate
+
+                total_potential_interest += potential_interest
+
+                report_data.append({
+                    "saving_account_id": account['saving_account_id'],
+                    "balance": float(account['balance']),
+                    "plan_name": account['plan_name'],
+                    "interest_rate": account['interest_rate'],
+                    "potential_monthly_interest": float(potential_interest),
+                    "open_date": account['open_date'].isoformat()
+                })
+
+            return {
+                "report_date": current_date.isoformat(),
+                "month_year": f"{current_month:02d}/{current_year}",
+                "total_accounts_pending": len(pending_accounts),
+                "total_potential_interest": float(total_potential_interest),
+                "accounts": report_data
+            }
+
+    except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
 

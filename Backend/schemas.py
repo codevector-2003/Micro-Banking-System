@@ -150,8 +150,8 @@ class AccountSearchRequest(BaseModel):
 
 class FixedDepositPlanCreate(BaseModel):
     f_plan_id: str
-    months: str
-    interest_rate: str
+    months: int
+    interest_rate: Decimal
 
 
 class FixedDepositPlanRead(FixedDepositPlanCreate):
