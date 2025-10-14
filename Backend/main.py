@@ -5,8 +5,8 @@ from auth import router as auth_router
 from customer import router as customer_router
 from employee import router as employee_router
 from branch import router as branch_router
-from accountHolder import router as account_holder_router
 from savingAccount import router as saving_account_router
+from transaction import router as transaction_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -25,6 +25,8 @@ app.include_router(employee_router, prefix="/employees", tags=["Employees"])
 app.include_router(branch_router, prefix='/branches', tags=["Branches"])
 app.include_router(saving_account_router,
                    prefix='/saving-accounts', tags=["Saving Accounts"])
+app.include_router(transaction_router,
+                   prefix='/transactions', tags=["Transactions"])
 
 
 @app.get("/")

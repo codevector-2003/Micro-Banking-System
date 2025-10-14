@@ -104,7 +104,6 @@ SELECT
 FROM Customer c
 JOIN AccountHolder ah ON c.customer_id = ah.customer_id
 JOIN Transactions t ON ah.holder_id = t.holder_id
-<<<<<<< HEAD
 GROUP BY c.customer_id, c.name;
 
 --search saving accounts get details
@@ -123,9 +122,15 @@ SELECT
 FROM SavingsAccount sa
 JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
 JOIN Customer c ON ah.customer_id = c.customer_id;
-=======
-GROUP BY c.customer_id, c.name
-WITH DATA;
->>>>>>> 05f5a8e7c8a9675f59b98e16722168f7ea1b4e0c
 
 CREATE INDEX idx_customer_activity_mv_id ON vw_customer_activity_mv(customer_id);
+
+CREATE OR REPLACE VIEW holder_balance_min AS
+SELECT
+    ah.holder_id,
+    sa.saving_account_id,
+    sa.balance,
+    sp.min_balance
+FROM AccountHolder ah
+JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
+JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id;

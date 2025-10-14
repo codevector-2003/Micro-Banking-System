@@ -202,10 +202,7 @@ INSERT INTO SavingsAccount_Plans (s_plan_id, plan_name, interest_rate, min_balan
 ('JO001', 'Joint', '7', 5000.00);
 
 
-
-to create saving account id
-
--- 1. Create the trigger function
+-- Trigger to generate unique 10-digit saving_account_id
 CREATE OR REPLACE FUNCTION set_saving_account_id()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -255,3 +252,56 @@ CREATE TRIGGER holder_id_trigger
 BEFORE INSERT ON AccountHolder
 FOR EACH ROW
 EXECUTE FUNCTION set_holder_id();
+
+
+
+-- 1. Create the trigger to make unique 10 digit transaction id
+CREATE OR REPLACE FUNCTION set_transaction_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_id INT;
+BEGIN
+    IF NEW.transaction_id IS NULL THEN
+        LOOP
+            -- Generate a random 5-digit integer (from 10000 to 99999)
+            new_id := floor(random() * 90000 + 10000)::int;
+            -- Ensure uniqueness
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM Transactions WHERE transaction_id = new_id);
+        END LOOP;
+        NEW.transaction_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Create the trigger on the Transactions table
+CREATE TRIGGER transaction_id_trigger
+BEFORE INSERT ON Transactions
+FOR EACH ROW
+EXECUTE FUNCTION set_transaction_id();
+
+
+-- 1. Create the trigger function
+CREATE OR REPLACE FUNCTION set_ref_number()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_ref INT;
+BEGIN
+    IF NEW.ref_number IS NULL THEN
+        LOOP
+            -- Generate a random 5-digit integer (from 10000 to 99999)
+            new_ref := floor(random() * 90000 + 10000)::int;
+            -- Ensure uniqueness
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM Transactions WHERE ref_number = new_ref);
+        END LOOP;
+        NEW.ref_number := new_ref;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Create the trigger on the Transactions table
+CREATE TRIGGER ref_number_trigger
+BEFORE INSERT ON Transactions
+FOR EACH ROW
+EXECUTE FUNCTION set_ref_number();

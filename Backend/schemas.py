@@ -188,7 +188,7 @@ class TransactionsCreate(BaseModel):
     type: Trantype
     amount: Decimal = Field(gt=Decimal("0"), decimal_places=2)
     timestamp: datetime | None = None  # Default to now in DB
-    ref_number: int
+    ref_number: int | None = None  # <-- Make optional
     description: str | None = Field(default=None, max_length=255)
 
 
