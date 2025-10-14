@@ -129,10 +129,8 @@ class SavingsAccountPlansRead(SavingsAccountPlansCreate):
 class SavingsAccountCreate(BaseModel):
     open_date: datetime
     balance: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
-    employee_id: str = Field(max_length=10)
     s_plan_id: str = Field(max_length=5)
     status: bool
-    branch_id: str = Field(max_length=7)
 
 
 class SavingsAccountRead(SavingsAccountCreate):

@@ -23,8 +23,6 @@ app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(customer_router, prefix="/customers", tags=["Customers"])
 app.include_router(employee_router, prefix="/employees", tags=["Employees"])
 app.include_router(branch_router, prefix='/branches', tags=["Branches"])
-app.include_router(account_holder_router,
-                   prefix='/account-holders', tags=["Account Holders"])
 app.include_router(saving_account_router,
                    prefix='/saving-accounts', tags=["Saving Accounts"])
 
