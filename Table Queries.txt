@@ -65,10 +65,10 @@ CREATE TABLE SavingsAccount(
     branch_id char(7) REFERENCES Branch(branch_id)
 );
 
-CREATE TABLE FixedDeposit_Plans(
-   f_plan_id char(5) PRIMARY KEY ,
-   months varchar(15),
-   interest_rate char(5)
+CREATE TABLE FixedDeposit_Plans (
+    f_plan_id CHAR(5) PRIMARY KEY,
+    months INT,                 -- now stores numeric month count (e.g., 6, 12, 36)
+    interest_rate DECIMAL(5,2)  -- better for percentages than CHAR(5)
 );
 
 CREATE TABLE FixedDeposit(
@@ -83,10 +83,11 @@ CREATE TABLE FixedDeposit(
    status boolean
 );
 
-INSERT INTO FixedDeposit_Plans (f_plan_id, months, interest_rate) VALUES
-('FD001', '6 months', '13%'),
-('FD002', '1 year', '14%'),
-('FD003', '3 years', '15%');
+INSERT INTO FixedDeposit_Plans (f_plan_id, months, interest_rate)
+VALUES
+('FD001', 6, 13.00),
+('FD002', 12, 14.00),
+('FD003', 36, 15.00);
 
 CREATE TABLE AccountHolder(
    holder_id char(10) PRIMARY KEY,

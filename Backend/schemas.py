@@ -239,3 +239,19 @@ class SavingsAccountWithCustomerRead(BaseModel):
     customer_id: str = Field(max_length=10)
     customer_name: str = Field(max_length=50)
     customer_nic: str = Field(max_length=12)
+
+# Joint Account Models
+
+
+class JointAccountCreate(BaseModel):
+    primary_customer_id: str = Field(max_length=10)
+    secondary_customer_id: str = Field(max_length=10)
+    initial_balance: Decimal = Field(gt=Decimal("0"), decimal_places=2)
+    s_plan_id: str = Field(max_length=5)
+
+
+class JointAccountRead(BaseModel):
+    saving_account_id: str = Field(max_length=10)
+    holder_ids: list[str]
+    customer_names: list[str]
+    customer_nics: list[str]

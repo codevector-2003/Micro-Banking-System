@@ -41,15 +41,16 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
                     status_code=403, detail="Branch managers can only create fixed deposits for accounts in their branch")
 
             cursor.execute("""
-                SELECT f_plan_id, months, interest_rate 
+                SELECT months, interest_rate 
                 FROM FixedDeposit_Plans 
                 WHERE f_plan_id = %s
             """, (fixed_deposit.f_plan_id,))
-
-            fd_plan_id = fixed_deposit.f_plan_id
-            if not fd_plan_id:
+            plan_row = cursor.fetchone()
+            if not plan_row:
                 raise HTTPException(
-                    status_code=400, detail="f_plan_id is required")
+                    status_code=400, detail="Invalid fixed deposit plan ID")
+            months = int(plan_row['months'])
+            # interest_rate is now decimal, but not used here
 
             # Check if a fixed deposit already exists for this account
             cursor.execute("""
@@ -64,9 +65,11 @@ def create_fixed_deposit(fixed_deposit: FixedDepositCreate, conn=Depends(get_db)
 
             # Prepare fixed deposit details
             start_date = datetime.now()
-            months = cursor.fetchone()['months'] if cursor.rowcount > 0 else 0
-            end_date = start_date.replace(
-                month=start_date.month + months) if months else start_date
+            # Calculate end_date by adding months
+            end_month = start_date.month + months
+            end_year = start_date.year + (end_month - 1) // 12
+            end_month = ((end_month - 1) % 12) + 1
+            end_date = start_date.replace(year=end_year, month=end_month)
             principal_amount = fixed_deposit.principal_amount
             interest_payment_type = fixed_deposit.interest_payment_type
             last_payout_date = start_date
@@ -184,10 +187,15 @@ def create_fixed_deposit_plan(plan: FixedDepositPlanCreate, conn=Depends(get_db)
             status_code=403, detail="Only admins can create fixed deposit plans.")
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Ensure months is int and interest_rate is decimal
+            months = int(plan.months) if isinstance(
+                plan.months, str) else plan.months
+            interest_rate = float(plan.interest_rate) if isinstance(
+                plan.interest_rate, str) else plan.interest_rate
             cursor.execute("""
                 INSERT INTO FixedDeposit_Plans (f_plan_id, months, interest_rate)
                 VALUES (%s, %s, %s)
-            """, (plan.f_plan_id, plan.months, plan.interest_rate))
+            """, (plan.f_plan_id, months, interest_rate))
             conn.commit()
         return {"message": "Fixed deposit plan created successfully."}
     except Exception as e:
