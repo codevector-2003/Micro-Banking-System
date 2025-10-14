@@ -77,7 +77,7 @@ class AuthenticationCreate(BaseModel):
     username: str = Field(max_length=30)
     password: str = Field(max_length=255)  # Hash before DB insert
     type: Etype
-    employee_id: str = Field(max_length=10)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class AuthenticationRead(AuthenticationCreate):
@@ -104,8 +104,8 @@ class CustomerCreate(BaseModel):
     address: str = Field(max_length=255)
     date_of_birth: date
     email: str | None = Field(default=None, max_length=255)
-    status: bool
-    employee_id: str = Field(max_length=10)
+    status: Optional[bool] = Field(default=True)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class CustomerRead(CustomerCreate):
@@ -137,6 +137,11 @@ class SavingsAccountCreate(BaseModel):
 
 class SavingsAccountRead(SavingsAccountCreate):
     saving_account_id: str = Field(max_length=10)
+
+
+class AccountStatusRequest(BaseModel):
+    saving_account_id: str
+    status: bool
 
 # FixedDeposit_Plans Models
 
@@ -191,3 +196,29 @@ class TransactionsCreate(BaseModel):
 
 class TransactionsRead(TransactionsCreate):
     transaction_id: int
+
+# Security: Secure request models for customer operations
+
+
+class CustomerSearchRequest(BaseModel):
+    """Secure search request model for customer search operations"""
+    customer_id: Optional[str] = Field(default=None, max_length=10)
+    nic: Optional[str] = Field(default=None, max_length=12)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+
+
+class CustomerUpdateRequest(BaseModel):
+    """Secure update request model for customer update operations"""
+    customer_id: str = Field(max_length=10)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+    address: Optional[str] = Field(default=None, max_length=255)
+    email: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[bool] = Field(default=None)
+
+
+class CustomerStatusRequest(BaseModel):
+    """Secure status update request model for customer status operations"""
+    customer_id: str = Field(max_length=10)
+    status: bool

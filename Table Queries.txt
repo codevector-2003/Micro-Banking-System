@@ -114,6 +114,117 @@ CREATE INDEX idx_holder_customer_id ON AccountHolder(customer_id);
 CREATE INDEX idx_transaction_holder_id ON Transactions(holder_id);
 
 
+Triggers:
+
+To make a branch id
+CREATE SEQUENCE branch_seq START 1;
+
+
+CREATE OR REPLACE FUNCTION set_branch_id()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.branch_id IS NULL THEN
+        NEW.branch_id := 'BT' || LPAD(nextval('branch_seq')::text, 3, '0');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER branch_id_trigger
+BEFORE INSERT ON branch
+FOR EACH ROW
+EXECUTE FUNCTION set_branch_id();
+
+to make employee id
+
+CREATE OR REPLACE FUNCTION set_employee_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    random_num INT;
+    new_id TEXT;
+BEGIN
+    IF NEW.employee_id IS NULL THEN
+        -- Generate a random 3-digit number between 100 and 999
+        random_num := floor(random() * 900 + 100)::int;
+        new_id := 'EMP' || random_num::text;
+
+        -- Ensure uniqueness (repeat until unique)
+        WHILE EXISTS (SELECT 1 FROM employee WHERE employee_id = new_id) LOOP
+            random_num := floor(random() * 900 + 100)::int;
+            new_id := 'EMP' || random_num::text;
+        END LOOP;
+
+        NEW.employee_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER employee_id_trigger
+BEFORE INSERT ON employee
+FOR EACH ROW
+EXECUTE FUNCTION set_employee_id();
+
+
+for customer id creation
+-- 1. Create a sequence for customer numbers
+CREATE SEQUENCE customer_seq START 1;
+
+-- 2. Create the trigger function
+CREATE OR REPLACE FUNCTION set_customer_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_id TEXT;
+BEGIN
+    IF NEW.customer_id IS NULL THEN
+        new_id := 'CUST' || LPAD(nextval('customer_seq')::text, 3, '0');
+        NEW.customer_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Create the trigger on the customer table
+CREATE TRIGGER customer_id_trigger
+BEFORE INSERT ON customer
+FOR EACH ROW
+EXECUTE FUNCTION set_customer_id();
+
+populate table
+INSERT INTO SavingsAccount_Plans (s_plan_id, plan_name, interest_rate, min_balance) VALUES
+('CH001', 'Children', '12', 0.00),
+('TE001', 'Teen', '11', 500.00),
+('AD001', 'Adult', '10', 1000.00),
+('SE001', 'Senior', '13', 1000.00),
+('JO001', 'Joint', '7', 5000.00);
 
 
 
+to create saving account id
+
+-- 1. Create the trigger function
+CREATE OR REPLACE FUNCTION set_saving_account_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_id TEXT;
+BEGIN
+    IF NEW.saving_account_id IS NULL THEN
+        LOOP
+            -- Generate a random 10-digit number as text
+            new_id := lpad((floor(random() * 1e10))::text, 10, '0');
+            -- Ensure uniqueness
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM SavingsAccount WHERE saving_account_id = new_id);
+        END LOOP;
+        NEW.saving_account_id := new_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Create the trigger on the SavingsAccount table
+CREATE TRIGGER saving_account_id_trigger
+BEFORE INSERT ON SavingsAccount
+FOR EACH ROW
+EXECUTE FUNCTION set_saving_account_id();
