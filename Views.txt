@@ -1,7 +1,4 @@
---Customer & saving accounts owned by them 
-
-
-CREATE OR REPLACE VIEW custome_owned_accounts AS
+CREATE OR REPLACE VIEW customer_owned_accounts AS
 SELECT 
     c.customer_id,
     c.name AS customer_name,
@@ -15,22 +12,7 @@ JOIN AccountHolder ah ON c.customer_id = ah.customer_id
 JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
 JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id;
 
--- Joint Accounts with its holders 
-
-CREATE OR  REPLACE VIEW joint_accounts_holders AS
-SELECT 
-    sa.saving_account_id,
-    sa.balance,
-    sa.status AS account_status,
-    string_agg(c.name, ', ') AS joint_customers
-FROM SavingsAccount sa
-JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
-JOIN Customer c ON ah.customer_id = c.customer_id
-GROUP BY sa.saving_account_id, sa.balance, sa.status
-HAVING COUNT(ah.customer_id) > 1;
-
---vw_account_transactions – transactions per account
-
+--  Account transactions
 CREATE OR REPLACE VIEW vw_account_transactions AS
 SELECT 
     sa.saving_account_id,
@@ -44,24 +26,7 @@ FROM Transactions t
 JOIN AccountHolder ah ON t.holder_id = ah.holder_id
 JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id;
 
-
---vw_agent_transactions – total transactions per agent (employee)
-
-CREATE OR REPLACE VIEW vw_agent_transactions AS
-SELECT 
-    e.employee_id,
-    e.name AS agent_name,
-    COUNT(t.transaction_id) AS total_transactions,
-    SUM(t.amount) AS total_value
-FROM Employee e
-JOIN Customer c ON e.employee_id = c.employee_id
-JOIN AccountHolder ah ON c.customer_id = ah.customer_id
-JOIN Transactions t ON ah.holder_id = t.holder_id
-GROUP BY e.employee_id, e.name;
-
-
---vw_active_fds – list of active FDs
-
+--  Active Fixed Deposits
 CREATE OR REPLACE VIEW vw_active_fds AS
 SELECT 
     fd.fixed_deposit_id,
@@ -76,34 +41,70 @@ SELECT
 FROM FixedDeposit fd
 WHERE fd.status = TRUE;
 
---vw_monthly_interest_summary – monthly interest per account type
+--  Joint Accounts & Holders
+CREATE MATERIALIZED VIEW joint_accounts_holders_mv AS
+SELECT 
+    sa.saving_account_id,
+    sa.balance,
+    sa.status AS account_status,
+    string_agg(c.name, ', ') AS joint_customers
+FROM SavingsAccount sa
+JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
+JOIN Customer c ON ah.customer_id = c.customer_id
+GROUP BY sa.saving_account_id, sa.balance, sa.status
+HAVING COUNT(ah.customer_id) > 1
+WITH DATA;
 
-CREATE OR REPLACE VIEW vw_monthly_interest_summary AS
+
+
+-- Agent Transaction Summary
+CREATE MATERIALIZED VIEW vw_agent_transactions_mv AS
+SELECT 
+    e.employee_id,
+    e.name AS agent_name,
+    COUNT(t.transaction_id) AS total_transactions,
+    SUM(t.amount) AS total_value
+FROM Employee e
+JOIN Customer c ON e.employee_id = c.employee_id
+JOIN AccountHolder ah ON c.customer_id = ah.customer_id
+JOIN Transactions t ON ah.holder_id = t.holder_id
+GROUP BY e.employee_id, e.name
+WITH DATA;
+
+
+
+-- Monthly Interest Summary
+CREATE MATERIALIZED VIEW vw_monthly_interest_summary_mv AS
 SELECT 
     sp.plan_name,
     sa.saving_account_id,
+    DATE_TRUNC('month', t.timestamp) AS month,
     SUM(t.amount) AS monthly_interest
 FROM Transactions t
 JOIN AccountHolder ah ON t.holder_id = ah.holder_id
 JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
 JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id
-WHERE t.type = 'FD Interest Credit'
-GROUP BY sp.plan_name, sa.saving_account_id;
+WHERE t.type = 'Interest'
+GROUP BY sp.plan_name, sa.saving_account_id, DATE_TRUNC('month', t.timestamp)
+WITH DATA;
 
---vw_customer_activity – total deposits, withdrawals, and net balance
 
-CREATE OR REPLACE VIEW vw_customer_activity AS
+
+
+-- Customer Activity Summary
+CREATE MATERIALIZED VIEW vw_customer_activity_mv AS
 SELECT 
     c.customer_id,
     c.name AS customer_name,
-    SUM(CASE WHEN t.type = 'deposit' THEN t.amount ELSE 0 END) AS total_deposits,
-    SUM(CASE WHEN t.type = 'withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals,
-    SUM(CASE WHEN t.type = 'deposit' THEN t.amount
-             WHEN t.type = 'withdrawal' THEN -t.amount
+    SUM(CASE WHEN t.type = 'Deposit' THEN t.amount ELSE 0 END) AS total_deposits,
+    SUM(CASE WHEN t.type = 'Withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals,
+    SUM(CASE WHEN t.type = 'Deposit' THEN t.amount
+             WHEN t.type = 'Withdrawal' THEN -t.amount
              ELSE 0 END) AS net_change
 FROM Customer c
 JOIN AccountHolder ah ON c.customer_id = ah.customer_id
 JOIN Transactions t ON ah.holder_id = t.holder_id
-GROUP BY c.customer_id, c.name;
+GROUP BY c.customer_id, c.name
+WITH DATA;
 
-
+CREATE INDEX idx_customer_activity_mv_id ON vw_customer_activity_mv(customer_id);
