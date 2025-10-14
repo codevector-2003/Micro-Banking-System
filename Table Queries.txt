@@ -83,6 +83,11 @@ CREATE TABLE FixedDeposit(
    status boolean
 );
 
+INSERT INTO FixedDeposit_Plans (f_plan_id, months, interest_rate) VALUES
+('FD001', '6 months', '13%'),
+('FD002', '1 year', '14%'),
+('FD003', '3 years', '15%');
+
 CREATE TABLE AccountHolder(
    holder_id char(10) PRIMARY KEY,
    customer_id char(10)REFERENCES Customer(customer_id),

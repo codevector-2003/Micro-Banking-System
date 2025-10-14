@@ -1,6 +1,6 @@
 from psycopg2.extras import RealDictCursor
 from fastapi import APIRouter, Depends, HTTPException
-from schemas import TransactionsCreate, TransactionsRead, Trantype
+from schemas import TransactionsCreate, TransactionsRead, Trantype, AccountSearchRequest
 from database import get_db
 from auth import get_current_user
 from datetime import date
@@ -64,5 +64,42 @@ def create_transaction(transaction: TransactionsCreate, conn=Depends(get_db), cu
             return TransactionsRead(**result)
     except Exception as e:
         conn.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.post("/transaction/search", response_model=list[TransactionsRead])
+def search_transactions_by_account(
+    request: AccountSearchRequest,
+    conn=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Get transaction history by saving_account_id, including joint accounts.
+    Uses holder_balance_min view to find holder IDs.
+    """
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get all holder_ids for this saving_account_id using the view
+            cursor.execute("""
+                SELECT holder_id FROM holder_balance_min WHERE saving_account_id = %s
+            """, (request.saving_account_id,))
+            holders = cursor.fetchall()
+            if not holders:
+                raise HTTPException(
+                    status_code=404, detail="No holders found for this account")
+
+            holder_ids = [h['holder_id'] for h in holders]
+
+            # Get transactions for all holder_ids
+            cursor.execute("""
+                SELECT transaction_id, holder_id, type, amount, timestamp, ref_number, description
+                FROM Transactions
+                WHERE holder_id = ANY(%s)
+                ORDER BY timestamp DESC
+            """, (holder_ids,))
+            transactions = cursor.fetchall()
+            return [TransactionsRead(**tx) for tx in transactions]
+    except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")

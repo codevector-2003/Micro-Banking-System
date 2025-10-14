@@ -7,6 +7,7 @@ from employee import router as employee_router
 from branch import router as branch_router
 from savingAccount import router as saving_account_router
 from transaction import router as transaction_router
+from fixedDeposit import router as fixed_deposit_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -27,6 +28,8 @@ app.include_router(saving_account_router,
                    prefix='/saving-accounts', tags=["Saving Accounts"])
 app.include_router(transaction_router,
                    prefix='/transactions', tags=["Transactions"])
+app.include_router(fixed_deposit_router,
+                   prefix='/fixed-deposits', tags=["Fixed Deposits"])
 
 
 @app.get("/")

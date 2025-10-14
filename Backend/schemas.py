@@ -141,15 +141,20 @@ class AccountStatusRequest(BaseModel):
     saving_account_id: str
     status: bool
 
+
+class AccountSearchRequest(BaseModel):
+    saving_account_id: str
+
 # FixedDeposit_Plans Models
 
 
-class FixedDepositPlansCreate(BaseModel):
-    months: str = Field(max_length=15)
-    interest_rate: str = Field(max_length=5)  # Store as string per schema
+class FixedDepositPlanCreate(BaseModel):
+    f_plan_id: str
+    months: str
+    interest_rate: str
 
 
-class FixedDepositPlansRead(FixedDepositPlansCreate):
+class FixedDepositPlanRead(FixedDepositPlanCreate):
     f_plan_id: str = Field(max_length=5)
 
 # FixedDeposit Models
