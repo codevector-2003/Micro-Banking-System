@@ -18,15 +18,21 @@ Micro-Banking-System/
 │   ├── transaction.py      # Transaction processing
 │   ├── fixedDeposit.py     # Fixed deposit management
 │   ├── jointAccounts.py    # Joint account operations
+│   ├── Dockerfile          # Backend containerization
 │   └── requirement.txt     # Python dependencies
-└── Frontend/               # React + TypeScript frontend
-    ├── src/
-    │   ├── components/     # React components
-    │   ├── services/       # API service functions
-    │   ├── contexts/       # React contexts (Auth)
-    │   └── config/         # API configuration
-    ├── package.json
-    └── vite.config.ts      # Vite configuration
+├── Frontend/               # React + TypeScript frontend
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── services/       # API service functions
+│   │   ├── contexts/       # React contexts (Auth)
+│   │   └── config/         # API configuration
+│   ├── Dockerfile          # Frontend containerization
+│   ├── package.json
+│   └── vite.config.ts      # Vite configuration
+├── init-scripts/           # Database initialization
+│   └── 01-init-database.sql # Complete database setup
+├── docker-compose.yml      # Docker services configuration
+└── README.md              # This file
 ```
 
 ## ✨ Key Features
@@ -97,7 +103,265 @@ npm run dev
 
 **Frontend will be available at:** http://localhost:5173
 
-## 🔧 Configuration
+## � Docker Implementation
+
+### Prerequisites for Docker
+- **Docker Desktop** installed and running
+- **Docker Compose** (included with Docker Desktop)
+
+### 🚀 One-Command Docker Setup
+
+**Run the entire application with Docker:**
+```bash
+docker-compose up --build
+```
+
+This will:
+- Build and start PostgreSQL database
+- **Automatically initialize database schema** with all tables, triggers, and views
+- **Insert sample data** for immediate testing
+- Build and start FastAPI backend
+- Build and start React frontend
+- Set up networking between all services
+
+**Services will be available at:**
+- 🌐 Frontend: http://localhost:5173
+- 🔌 Backend API: http://localhost:8000
+- 📚 API Docs: http://localhost:8000/docs
+- 🗄️ PostgreSQL: localhost:5432
+
+### 📁 Docker Configuration Files
+
+The project includes these Docker files:
+
+#### `docker-compose.yml` (Root)
+```yaml
+version: "3.9"
+
+services:
+  backend:
+    build: ./Backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=B_trust
+      - DB_USER=postgres
+      - DB_PASSWORD=1234
+
+  frontend:
+    build: ./Frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: B_trust
+    volumes:
+      - ./init-scripts:/docker-entrypoint-initdb.d/
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:
+```
+
+#### `Backend/Dockerfile`
+- Multi-stage build for optimized image size
+- Uses Python 3.11 slim base image
+- Runs with Gunicorn + Uvicorn workers for production
+- Includes health checks and security best practices
+
+#### `Frontend/Dockerfile`
+- Uses Node.js for building React app
+- Serves with Nginx for production
+- Optimized for static file serving
+
+#### `Backend/.dockerignore`
+```
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.env
+venv/
+.git
+```
+
+#### `init-scripts/01-init-database.sql`
+Complete database initialization script that automatically creates:
+- **11 Tables**: All banking entities with proper relationships
+- **Custom Types**: Employee types, account types, transaction types
+- **Auto-ID Triggers**: Automatic ID generation for all entities
+- **Views & Materialized Views**: Pre-built queries for reporting
+- **Sample Data**: Ready-to-use test accounts and users
+- **Default Login Credentials**:
+  - Admin: `admin` / `password123`
+  - Manager: `manager1` / `password123` 
+  - Agent: `agent1` / `password123`
+
+### 🔧 Docker Commands
+
+**Build and start all services:**
+```bash
+docker-compose up --build
+```
+
+**Start services in background:**
+```bash
+docker-compose up -d
+```
+
+**Stop all services:**
+```bash
+docker-compose down
+```
+
+**View logs:**
+```bash
+# All services
+docker-compose logs
+
+# Specific service
+docker-compose logs backend
+docker-compose logs frontend
+docker-compose logs db
+```
+
+**Rebuild specific service:**
+```bash
+docker-compose build backend
+docker-compose build frontend
+```
+
+**Access service containers:**
+```bash
+# Backend container
+docker-compose exec backend bash
+
+# Database container
+docker-compose exec db psql -U postgres -d B_trust
+```
+
+### 🔧 Environment Configuration for Docker
+
+#### `Backend/.env` (for Docker)
+```env
+# Database configuration
+DB_HOST=db
+DB_PORT=5432
+DB_NAME=B_trust
+DB_USER=postgres
+DB_PASSWORD=1234
+DB_SSLMODE=disable
+
+# JWT configuration
+JWT_SECRET=your_secret_key
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+#### `Frontend/src/config/api.ts` (for Docker)
+```typescript
+export const API_BASE_URL = 'http://localhost:8000';
+```
+
+### 🐛 Docker Troubleshooting
+
+**Common Docker Issues:**
+
+**Port conflicts:**
+```bash
+# Check what's using ports
+netstat -ano | findstr :8000
+netstat -ano | findstr :5173
+
+# Stop conflicting processes or change ports in docker-compose.yml
+```
+
+**Database connection issues:**
+```bash
+# Check if database is ready
+docker-compose exec db pg_isready -U postgres
+
+# View database logs
+docker-compose logs db
+```
+
+**Build failures:**
+```bash
+# Clean build (no cache)
+docker-compose build --no-cache
+
+# Remove all containers and rebuild
+docker-compose down
+docker system prune -f
+docker-compose up --build
+```
+
+**Container not starting:**
+```bash
+# Check container status
+docker-compose ps
+
+# View detailed logs
+docker-compose logs --follow backend
+```
+
+**Volume issues:**
+```bash
+# Remove volumes and restart
+docker-compose down -v
+docker-compose up --build
+```
+
+### 🚀 Production Docker Deployment
+
+For production deployment, consider:
+
+1. **Use environment files:**
+```bash
+docker-compose --env-file .env.prod up -d
+```
+
+2. **Set production environment variables:**
+```env
+JWT_SECRET=super_secure_production_secret
+DB_PASSWORD=strong_production_password
+```
+
+3. **Use Docker secrets for sensitive data**
+4. **Set up proper logging and monitoring**
+5. **Configure reverse proxy (Nginx) for HTTPS**
+
+### 📊 Docker Service Dependencies
+
+```
+┌─────────────┐    ┌──────────────┐    ┌────────────────┐
+│  Frontend   │───▶│   Backend    │───▶│   PostgreSQL   │
+│  (React)    │    │  (FastAPI)   │    │   Database     │
+│  Port: 5173 │    │  Port: 8000  │    │   Port: 5432   │
+└─────────────┘    └──────────────┘    └────────────────┘
+```
+
+**Service startup order:**
+1. PostgreSQL Database starts first
+2. Backend waits for database to be ready
+3. Frontend starts after backend is available
+
+## �🔧 Configuration
 
 ### Environment Variables (Backend)
 Create a `.env` file in the Backend directory:
