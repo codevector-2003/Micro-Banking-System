@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.post("/employee", response_model=EmployeeRead)
 def create_employee(employee: EmployeeCreate, conn=Depends(get_db), current_user=Depends(get_current_user)) -> EmployeeRead:
-    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
+    if current_user.get('type').lower() not in ['admin']:
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to create employees"
         )
@@ -58,7 +58,7 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
     """
     Search employees by various criteria.
     """
-    if current_user.get('type').lower() not in ['branch_manager', 'admin', 'agent']:
+    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:

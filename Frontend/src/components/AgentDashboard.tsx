@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users, Loader2 } from 'lucide-react';
+import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users, Loader2, Edit, Save, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -41,6 +41,9 @@ export function AgentDashboard() {
   const [fdAmount, setFdAmount] = useState('');
   const [selectedFdPlan, setSelectedFdPlan] = useState('');
   const [fdAccountId, setFdAccountId] = useState('');
+
+  // Customer editing state
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   // Data from APIs
   const [savingsPlans, setSavingsPlans] = useState<SavingsPlan[]>([]);
@@ -111,6 +114,7 @@ export function AgentDashboard() {
       setFdAccountId('');
       setTransactionAmount('');
       setTransactionType('');
+      setEditingCustomer(null);
     }
 
     setCurrentView(view);
@@ -499,6 +503,37 @@ export function AgentDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer({ ...customer });
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!user?.token || !editingCustomer) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { customer_id, employee_id, ...updates } = editingCustomer;
+      const updatedCustomer = await CustomerService.updateCustomer(customer_id, updates, user.token);
+
+      // Update the selected customer with new data
+      setSelectedCustomer(updatedCustomer);
+
+      setSuccess('Customer updated successfully');
+      setEditingCustomer(null);
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCustomer(null);
+    setError('');
   };
 
   const renderHomeScreen = () => (
@@ -962,13 +997,95 @@ export function AgentDashboard() {
         </Alert>
       )}
 
+      {/* Customer Edit Modal/Panel */}
+      {editingCustomer && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Edit Customer Details</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Customer Name *</Label>
+                <Input
+                  value={editingCustomer.name}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={editingCustomer.phone_number || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, phone_number: e.target.value })}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={editingCustomer.email || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Address</Label>
+                <Input
+                  value={editingCustomer.address || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, address: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={editingCustomer.status ? 'active' : 'inactive'}
+                  onValueChange={(value) => setEditingCustomer({ ...editingCustomer, status: value === 'active' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={handleCancelEdit}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateCustomer} disabled={loading}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
-              Customer Information
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center">
+                <User className="h-5 w-5 mr-2" />
+                Customer Information
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditCustomer(selectedCustomer!)}
+                disabled={editingCustomer !== null}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>

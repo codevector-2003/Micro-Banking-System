@@ -110,6 +110,8 @@ def get_all_customers(conn=Depends(get_db), current_user=Depends(get_current_use
     query = """SELECT customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id
             From customer
             """
+    values = ()  # Initialize empty tuple for admin users
+
     if current_user.get('type').lower() == 'agent':
         query += " WHERE employee_id = %s"
         values = (current_user.get('employee_id'),)
@@ -130,7 +132,7 @@ def get_all_customers(conn=Depends(get_db), current_user=Depends(get_current_use
 def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(get_db), current_user=Depends(get_current_user)) -> CustomerRead:
 
     # Security: Check user permissions
-    if current_user.get('type') not in ['admin', 'agent']:
+    if current_user.get('type').lower() not in ['admin', 'agent']:
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to update customer details")
 
