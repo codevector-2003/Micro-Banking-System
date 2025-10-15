@@ -21,6 +21,11 @@ scheduler_running = False
 scheduler_thread = None
 
 
+def round_currency(amount: Decimal) -> Decimal:
+    """Round decimal amount to 2 decimal places for currency precision."""
+    return amount.quantize(Decimal('0.01'))
+
+
 def get_admin_user():
     """Create a mock admin user for automated tasks"""
     return {
@@ -90,6 +95,9 @@ def auto_calculate_savings_account_interest():
                     # Calculate monthly interest based on current balance
                     interest_amount = account['balance'] * \
                         monthly_interest_rate
+
+                    # Round to 2 decimal places for currency precision
+                    interest_amount = round_currency(interest_amount)
 
                     if interest_amount > 0:
                         # Get a holder for this account (use first one if joint)
@@ -189,6 +197,9 @@ def auto_calculate_fixed_deposit_interest():
                     # Calculate interest for complete periods
                     interest_amount = fd['principal_amount'] * \
                         monthly_interest_rate * complete_periods
+
+                    # Round to 2 decimal places for currency precision
+                    interest_amount = round_currency(interest_amount)
 
                     if interest_amount > 0:
                         # Get a holder for this account (use first one if joint)
@@ -290,8 +301,14 @@ def auto_process_matured_deposits():
                     remaining_interest = fd['principal_amount'] * \
                         daily_interest_rate * days_remaining
 
+                    # Round to 2 decimal places for currency precision
+                    remaining_interest = round_currency(remaining_interest)
+
                 # Total amount to return (principal + remaining interest)
                 total_return = fd['principal_amount'] + remaining_interest
+
+                # Round total return to 2 decimal places for currency precision
+                total_return = round_currency(total_return)
 
                 # Get a holder for this account
                 cursor.execute("""
@@ -517,6 +534,9 @@ def calculate_savings_account_interest(conn=Depends(get_db), current_user=Depend
                     interest_amount = account['balance'] * \
                         monthly_interest_rate
 
+                    # Round to 2 decimal places for currency precision
+                    interest_amount = round_currency(interest_amount)
+
                     if interest_amount > 0:
                         # Get a holder for this account (use first one if joint)
                         cursor.execute("""
@@ -616,6 +636,9 @@ def calculate_fixed_deposit_interest(conn=Depends(get_db), current_user=Depends(
                     # Calculate interest for complete periods
                     interest_amount = fd['principal_amount'] * \
                         monthly_interest_rate * complete_periods
+
+                    # Round to 2 decimal places for currency precision
+                    interest_amount = round_currency(interest_amount)
 
                     if interest_amount > 0:
                         # Get a holder for this account (use first one if joint)
@@ -718,8 +741,14 @@ def mature_fixed_deposits(conn=Depends(get_db), current_user=Depends(get_current
                     remaining_interest = fd['principal_amount'] * \
                         daily_interest_rate * days_remaining
 
+                    # Round to 2 decimal places for currency precision
+                    remaining_interest = round_currency(remaining_interest)
+
                 # Total amount to return (principal + remaining interest)
                 total_return = fd['principal_amount'] + remaining_interest
+
+                # Round total return to 2 decimal places for currency precision
+                total_return = round_currency(total_return)
 
                 # Get a holder for this account
                 cursor.execute("""
@@ -807,6 +836,9 @@ def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depen
                 monthly_interest_rate = annual_interest_rate / Decimal('12')
                 potential_interest = account['balance'] * monthly_interest_rate
 
+                # Round to 2 decimal places for currency precision
+                potential_interest = round_currency(potential_interest)
+
                 total_potential_interest += potential_interest
 
                 report_data.append({
@@ -876,6 +908,9 @@ def get_fixed_deposit_interest_report(conn=Depends(get_db), current_user=Depends
                 monthly_interest_rate = annual_interest_rate / Decimal('12')
                 potential_interest = fd['principal_amount'] * \
                     monthly_interest_rate * complete_periods
+
+                # Round to 2 decimal places for currency precision
+                potential_interest = round_currency(potential_interest)
 
                 total_potential_interest += potential_interest
 

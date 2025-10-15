@@ -397,6 +397,44 @@ export class TasksService {
     }
 }
 
+// Fixed Deposit Plans Service
+export class FDPlansService {
+    static async getAllFDPlans(token: string): Promise<FixedDepositPlan[]> {
+        const response = await fetch(buildApiUrl('/fixed-deposits/fixed-deposit-plan'), {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch fixed deposit plans');
+        }
+
+        return response.json();
+    }
+
+    static async createFDPlan(planData: FixedDepositPlan, token: string): Promise<{ message: string }> {
+        const response = await fetch(buildApiUrl('/fixed-deposits/fixed-deposit-plan'), {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(planData),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to create fixed deposit plan');
+        }
+
+        return response.json();
+    }
+}
+
 // System Statistics Service
 export class SystemStatsService {
     static async getSystemStatistics(token: string): Promise<any> {

@@ -12,15 +12,18 @@ import { Alert, AlertDescription } from './ui/alert';
 import { ConnectionTest } from './ConnectionTest';
 import { CustomerService, type Customer, handleApiError } from '../services/agentService';
 import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
+import { AuthService, type RegisterRequest } from '../services/authService';
 import {
   BranchService,
   EmployeeService,
   TasksService,
   SystemStatsService,
+  FDPlansService,
   type Branch,
   type Employee,
   type TaskStatus,
   type InterestReport,
+  type FixedDepositPlan,
   handleApiError as handleAdminApiError
 } from '../services/adminService';
 
@@ -42,7 +45,7 @@ export function AdminDashboard() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [savingsPlans, setSavingsPlans] = useState<SavingsPlan[]>([]);
-  const [fdPlans, setFdPlans] = useState<any[]>([]);
+  const [fdPlans, setFdPlans] = useState<FixedDepositPlan[]>([]);
   const [systemStats, setSystemStats] = useState({
     totalBranches: 0,
     totalEmployees: 0,
@@ -80,6 +83,28 @@ export function AdminDashboard() {
   });
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [employeeSearchType, setEmployeeSearchType] = useState('name');
+
+  // FD Plans management state
+  const [editingFDPlan, setEditingFDPlan] = useState<FixedDepositPlan | null>(null);
+  const [newFDPlan, setNewFDPlan] = useState({
+    f_plan_id: '',
+    months: 12,
+    interest_rate: ''
+  });
+
+  // User registration state
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: '',
+    password: '',
+    type: 'Agent' as 'Admin' | 'Branch Manager' | 'Agent',
+    employee_id: ''
+  });
+
+  // Interest reports state
+  const [savingsInterestReport, setSavingsInterestReport] = useState<any>(null);
+  const [fdInterestReport, setFdInterestReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Load initial data when component mounts
   useEffect(() => {
@@ -166,11 +191,12 @@ export function AdminDashboard() {
 
     setLoading(true);
     try {
-      const [plansData] = await Promise.all([
+      const [plansData, fdPlansData] = await Promise.all([
         SavingsPlansService.getAllSavingsPlans(user.token),
-        // Add FD plans when service is available
+        FDPlansService.getAllFDPlans(user.token)
       ]);
       setSavingsPlans(plansData);
+      setFdPlans(fdPlansData);
     } catch (error) {
       setError(handleAdminApiError(error));
     } finally {
@@ -338,6 +364,51 @@ export function AdminDashboard() {
     }
   };
 
+  // Interest Report handlers
+  const handleLoadSavingsInterestReport = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportLoading(true);
+      const report = await TasksService.getSavingsAccountInterestReport(user.token);
+      setSavingsInterestReport(report);
+      setSuccess('Savings account interest report loaded successfully');
+    } catch (error) {
+      setError(handleAdminApiError(error));
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleLoadFDInterestReport = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportLoading(true);
+      const report = await TasksService.getFixedDepositInterestReport(user.token);
+      setFdInterestReport(report);
+      setSuccess('Fixed deposit interest report loaded successfully');
+    } catch (error) {
+      setError(handleAdminApiError(error));
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleMatureFixedDeposits = async () => {
+    if (!user?.token) return;
+
+    try {
+      setLoading(true);
+      await TasksService.matureFixedDeposits(user.token);
+      setSuccess('Fixed deposits matured successfully');
+    } catch (error) {
+      setError(handleAdminApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Employee management handlers
   const handleCreateEmployee = async () => {
     if (!user?.token || !editingEmployee) return;
@@ -430,7 +501,83 @@ export function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };  // Clear messages after 5 seconds
+  };
+
+  // FD Plan management handlers
+  const handleCreateFDPlan = async () => {
+    if (!user?.token || !editingFDPlan) return;
+
+    // Validation
+    if (!editingFDPlan.f_plan_id.trim()) {
+      setError('Plan ID is required');
+      return;
+    }
+    if (!editingFDPlan.interest_rate.trim()) {
+      setError('Interest rate is required');
+      return;
+    }
+    if (editingFDPlan.months <= 0) {
+      setError('Duration must be greater than 0');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await FDPlansService.createFDPlan(editingFDPlan, user.token);
+      await loadSystemSettings(); // Reload plans
+      setEditingFDPlan(null);
+      setNewFDPlan({
+        f_plan_id: '',
+        months: 12,
+        interest_rate: ''
+      });
+      setSuccess('Fixed deposit plan created successfully');
+    } catch (error) {
+      setError(handleAdminApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // User registration handler
+  const handleRegisterUser = async () => {
+    if (!user?.token || !newUser.username.trim() || !newUser.password.trim()) {
+      setError('Username and password are required');
+      return;
+    }
+
+    // Validation for employee_id based on user type
+    if (newUser.type !== 'Admin' && !newUser.employee_id.trim()) {
+      setError('Employee ID is required for Branch Manager and Agent accounts');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const registerData: RegisterRequest = {
+        username: newUser.username,
+        password: newUser.password,
+        type: newUser.type,
+        employee_id: newUser.type === 'Admin' ? null : newUser.employee_id
+      };
+
+      await AuthService.register(registerData);
+      setSuccess('User registered successfully');
+      setShowRegisterModal(false);
+      setNewUser({
+        username: '',
+        password: '',
+        type: 'Agent',
+        employee_id: ''
+      });
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear messages after 5 seconds
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(''), 5000);
@@ -615,10 +762,11 @@ export function AdminDashboard() {
             </CardContent>
           </Card>
         </div>        <Tabs defaultValue="branches" className="space-y-6" onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="branches">Branches</TabsTrigger>
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="customers">Customers</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="interest">Interest</TabsTrigger>
@@ -1325,6 +1473,234 @@ export function AdminDashboard() {
             )}
           </TabsContent>
 
+          {/* Fixed Deposit Plan Edit Modal */}
+          {editingFDPlan && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-md mx-4">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>
+                      {editingFDPlan.f_plan_id ? 'Edit FD Plan' : 'Create New FD Plan'}
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => setEditingFDPlan(null)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fd-plan-id">Plan ID *</Label>
+                    <Input
+                      id="fd-plan-id"
+                      value={editingFDPlan.f_plan_id}
+                      onChange={(e) => setEditingFDPlan({ ...editingFDPlan, f_plan_id: e.target.value })}
+                      placeholder="Enter plan ID (e.g., FD001)"
+                      className={!editingFDPlan.f_plan_id.trim() ? "border-red-300" : ""}
+                    />
+                    {!editingFDPlan.f_plan_id.trim() && (
+                      <p className="text-sm text-red-600">Plan ID is required</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fd-months">Duration (Months) *</Label>
+                    <Input
+                      id="fd-months"
+                      type="number"
+                      value={editingFDPlan.months}
+                      onChange={(e) => setEditingFDPlan({ ...editingFDPlan, months: parseInt(e.target.value) || 12 })}
+                      placeholder="Enter duration in months"
+                      min="1"
+                      className={editingFDPlan.months <= 0 ? "border-red-300" : ""}
+                    />
+                    {editingFDPlan.months <= 0 && (
+                      <p className="text-sm text-red-600">Duration must be greater than 0</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fd-interest-rate">Interest Rate (%) *</Label>
+                    <Input
+                      id="fd-interest-rate"
+                      value={editingFDPlan.interest_rate}
+                      onChange={(e) => setEditingFDPlan({ ...editingFDPlan, interest_rate: e.target.value })}
+                      placeholder="Enter interest rate (e.g., 5.5)"
+                      className={!editingFDPlan.interest_rate.trim() ? "border-red-300" : ""}
+                    />
+                    {!editingFDPlan.interest_rate.trim() && (
+                      <p className="text-sm text-red-600">Interest rate is required</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button variant="outline" onClick={() => setEditingFDPlan(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateFDPlan}
+                      disabled={
+                        loading ||
+                        !editingFDPlan.f_plan_id.trim() ||
+                        !editingFDPlan.interest_rate.trim() ||
+                        editingFDPlan.months <= 0
+                      }
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {editingFDPlan.f_plan_id ? 'Update Plan' : 'Create Plan'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* User Registration Modal */}
+          {showRegisterModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-md mx-4">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>Register New User</CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => setShowRegisterModal(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username *</Label>
+                    <Input
+                      id="username"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      placeholder="Enter username"
+                      className={!newUser.username.trim() ? "border-red-300" : ""}
+                    />
+                    {!newUser.username.trim() && (
+                      <p className="text-sm text-red-600">Username is required</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      placeholder="Enter password"
+                      className={!newUser.password.trim() ? "border-red-300" : ""}
+                    />
+                    {!newUser.password.trim() && (
+                      <p className="text-sm text-red-600">Password is required</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="user-type">User Type *</Label>
+                    <Select
+                      value={newUser.type}
+                      onValueChange={(value: 'Admin' | 'Branch Manager' | 'Agent') =>
+                        setNewUser({ ...newUser, type: value, employee_id: value === 'Admin' ? '' : newUser.employee_id })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Admin">Admin</SelectItem>
+                        <SelectItem value="Branch Manager">Branch Manager</SelectItem>
+                        <SelectItem value="Agent">Agent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {newUser.type !== 'Admin' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-id">Employee ID *</Label>
+                      <Input
+                        id="employee-id"
+                        value={newUser.employee_id}
+                        onChange={(e) => setNewUser({ ...newUser, employee_id: e.target.value })}
+                        placeholder="Enter employee ID"
+                        className={!newUser.employee_id.trim() ? "border-red-300" : ""}
+                      />
+                      {!newUser.employee_id.trim() && (
+                        <p className="text-sm text-red-600">Employee ID is required for {newUser.type} accounts</p>
+                      )}
+                    </div>
+                  )}
+
+                  <Alert>
+                    <AlertDescription className="text-xs">
+                      {newUser.type === 'Admin'
+                        ? 'Admin accounts have full system access and do not require an employee ID.'
+                        : `${newUser.type} accounts require a valid employee ID and will have ${newUser.type === 'Branch Manager' ? 'branch management' : 'customer service'} permissions.`
+                      }
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button variant="outline" onClick={() => setShowRegisterModal(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleRegisterUser}
+                      disabled={
+                        loading ||
+                        !newUser.username.trim() ||
+                        !newUser.password.trim() ||
+                        (newUser.type !== 'Admin' && !newUser.employee_id.trim())
+                      }
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Register User
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* User Management */}
+          <TabsContent value="users" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>User Account Management</CardTitle>
+                    <CardDescription>Register new users and manage account access</CardDescription>
+                  </div>
+                  <Button onClick={() => setShowRegisterModal(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Register User
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Alert>
+                    <AlertDescription>
+                      <strong>Account Types:</strong>
+                      <ul className="mt-2 space-y-1">
+                        <li><strong>Admin:</strong> Full system access (no employee ID required)</li>
+                        <li><strong>Branch Manager:</strong> Branch-specific management (requires valid employee ID)</li>
+                        <li><strong>Agent:</strong> Customer service operations (requires valid employee ID)</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="border rounded-lg p-4">
+                    <h3 className="text-lg font-medium mb-2">Recent Registration Activity</h3>
+                    <p className="text-sm text-gray-500">
+                      User registration functionality is available. Click "Register User" to create new accounts.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* System Settings */}
           <TabsContent value="settings" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1376,32 +1752,53 @@ export function AdminDashboard() {
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <CardTitle>Fixed Deposit Plans</CardTitle>
-                    <Button size="sm">
+                    <Button
+                      size="sm"
+                      onClick={() => setEditingFDPlan({ f_plan_id: '', months: 12, interest_rate: '' })}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Add Plan
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {loading && <div className="text-center py-4">Loading plans...</div>}
+
+                  {error && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="space-y-3">
-                    {fdPlans.map((plan) => (
-                      <div key={plan.id} className="p-3 border rounded flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{plan.name}</p>
-                          <p className="text-sm text-gray-500">
-                            Duration: {plan.duration} months | Rate: {plan.rate}%
-                          </p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={plan.status === 'Active' ? 'default' : 'secondary'}>
-                            {plan.status}
-                          </Badge>
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
+                    {fdPlans.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        No fixed deposit plans found
                       </div>
-                    ))}
+                    ) : (
+                      fdPlans.map((plan) => (
+                        <div key={plan.f_plan_id} className="p-3 border rounded flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">Plan ID: {plan.f_plan_id}</p>
+                            <p className="text-sm text-gray-500">
+                              Duration: {plan.months} months | Rate: {plan.interest_rate}%
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="default">
+                              Active
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingFDPlan({ ...plan })}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1499,7 +1896,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Total Volume</span>
-                        <span className="text-sm">$2.1M</span>
+                        <span className="text-sm">Rs. 2.1M</span>
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded">
@@ -1509,7 +1906,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Total Volume</span>
-                        <span className="text-sm">$8.3M</span>
+                        <span className="text-sm">Rs. 8.3M</span>
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded">
@@ -1519,7 +1916,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Total Volume</span>
-                        <span className="text-sm">$5.5M</span>
+                        <span className="text-sm">Rs. 5.5M</span>
                       </div>
                     </div>
                   </div>
@@ -1540,7 +1937,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Monthly Payout</span>
-                        <span className="text-sm">$15,500</span>
+                        <span className="text-sm">Rs. 15,500</span>
                       </div>
                     </div>
                     <div className="p-3 bg-green-50 rounded">
@@ -1550,7 +1947,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Monthly Payout</span>
-                        <span className="text-sm">$65,200</span>
+                        <span className="text-sm">Rs. 65,200</span>
                       </div>
                     </div>
                     <div className="p-3 bg-green-50 rounded">
@@ -1560,7 +1957,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Monthly Payout</span>
-                        <span className="text-sm">$44,300</span>
+                        <span className="text-sm">Rs. 44,300</span>
                       </div>
                     </div>
                   </div>
@@ -1588,7 +1985,7 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Avg. Balance</span>
-                      <span className="font-medium">${(systemStats.totalDeposits / 692 / 1000).toFixed(1)}K</span>
+                      <span className="font-medium">Rs. {(systemStats.totalDeposits / 692 / 1000).toFixed(1)}K</span>
                     </div>
                   </div>
                 </CardContent>
@@ -1615,70 +2012,207 @@ export function AdminDashboard() {
 
           {/* Interest Processing */}
           <TabsContent value="interest" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Interest Processing</CardTitle>
-                <CardDescription>
-                  Run monthly interest calculations for Fixed Deposits
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h4 className="font-medium mb-2">Next Interest Run</h4>
-                    <p className="text-sm text-gray-600 mb-4">Scheduled for: February 1, 2024</p>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Eligible FDs</p>
-                        <p className="font-medium">{systemStats.activeFDs}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Estimated Payout</p>
-                        <p className="font-medium">${systemStats.monthlyInterestPayout.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Button className="w-full" size="lg">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Interest Calculation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Interest Calculation</CardTitle>
+                  <CardDescription>
+                    Calculate interest for savings accounts and fixed deposits
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleCalculateSavingsInterest}
+                      disabled={loading}
+                      className="w-full"
+                    >
                       <RefreshCw className="h-4 w-4 mr-2" />
-                      Run Interest Processing
+                      Calculate Savings Account Interest
                     </Button>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button variant="outline">
-                        Preview Interest Calculations
-                      </Button>
-                      <Button variant="outline">
-                        Download Processing Log
-                      </Button>
-                    </div>
+                    <p className="text-sm text-gray-600">Calculate monthly interest for all eligible savings accounts</p>
                   </div>
 
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-3">Last Processing Summary</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Date</span>
-                        <span>January 1, 2024</span>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleCalculateFDInterest}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Calculate Fixed Deposit Interest
+                    </Button>
+                    <p className="text-sm text-gray-600">Calculate interest for fixed deposits due for payment</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleMatureFixedDeposits}
+                      disabled={loading}
+                      className="w-full"
+                      variant="secondary"
+                    >
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Mature Fixed Deposits
+                    </Button>
+                    <p className="text-sm text-gray-600">Process matured fixed deposits and return principal + interest</p>
+                  </div>                  {taskStatus && (
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">Automatic Tasks</span>
+                        <Badge variant={taskStatus.scheduler_running ? 'default' : 'secondary'}>
+                          {taskStatus.scheduler_running ? 'Running' : 'Stopped'}
+                        </Badge>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Processed FDs</span>
-                        <span>189</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Total Payout</span>
-                        <span>${systemStats.monthlyInterestPayout.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Status</span>
-                        <Badge variant="default">Completed</Badge>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <p>Next Savings: {taskStatus.next_savings_interest_calculation}</p>
+                        <p>Next FD: {taskStatus.next_fd_interest_calculation}</p>
                       </div>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Interest Reports */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Interest Reports</CardTitle>
+                  <CardDescription>
+                    View detailed interest calculation reports
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleLoadSavingsInterestReport}
+                      disabled={reportLoading}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Load Savings Interest Report
+                    </Button>
+                    {savingsInterestReport && (
+                      <div className="p-3 bg-green-50 rounded-lg text-sm">
+                        <div className="font-medium">Savings Report ({savingsInterestReport.month_year})</div>
+                        <div className="text-gray-600">
+                          <p>Pending Accounts: {savingsInterestReport.total_accounts_pending}</p>
+                          <p>Potential Interest: Rs. {savingsInterestReport.total_potential_interest?.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleLoadFDInterestReport}
+                      disabled={reportLoading}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Load FD Interest Report
+                    </Button>
+                    {fdInterestReport && (
+                      <div className="p-3 bg-green-50 rounded-lg text-sm">
+                        <div className="font-medium">FD Report</div>
+                        <div className="text-gray-600">
+                          <p>Deposits Due: {fdInterestReport.total_deposits_due}</p>
+                          <p>Potential Interest: Rs. {fdInterestReport.total_potential_interest?.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {reportLoading && (
+                    <div className="text-center py-4">
+                      <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Loading report...</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Detailed Savings Interest Report */}
+            {savingsInterestReport && savingsInterestReport.accounts && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Savings Accounts Pending Interest ({savingsInterestReport.month_year})</CardTitle>
+                  <CardDescription>
+                    Accounts that haven't received interest this month
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {savingsInterestReport.accounts.slice(0, 10).map((account: any, index: number) => (
+                      <div key={account.saving_account_id || index} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">Account: {account.saving_account_id}</p>
+                            <p className="text-sm text-gray-600">Plan: {account.plan_name}</p>
+                            <p className="text-sm text-gray-600">Rate: {account.interest_rate}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">Balance: Rs. {account.balance?.toFixed(2)}</p>
+                            <p className="text-sm text-green-600">
+                              Interest: Rs. {account.potential_monthly_interest?.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {savingsInterestReport.accounts.length > 10 && (
+                      <p className="text-sm text-gray-600 text-center">
+                        Showing 10 of {savingsInterestReport.accounts.length} accounts
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Detailed FD Interest Report */}
+            {fdInterestReport && fdInterestReport.deposits && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fixed Deposits Due for Interest</CardTitle>
+                  <CardDescription>
+                    Fixed deposits that are due for interest payment
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {fdInterestReport.deposits.slice(0, 10).map((deposit: any, index: number) => (
+                      <div key={deposit.fixed_deposit_id || index} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">FD ID: {deposit.fixed_deposit_id}</p>
+                            <p className="text-sm text-gray-600">Account: {deposit.saving_account_id}</p>
+                            <p className="text-sm text-gray-600">
+                              Days since payout: {deposit.days_since_payout} ({deposit.complete_periods} periods)
+                            </p>
+                            <p className="text-sm text-gray-600">Rate: {deposit.interest_rate}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">Principal: Rs. {deposit.principal_amount?.toFixed(2)}</p>
+                            <p className="text-sm text-green-600">
+                              Interest Due: Rs. {deposit.potential_interest?.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {fdInterestReport.deposits.length > 10 && (
+                      <p className="text-sm text-gray-600 text-center">
+                        Showing 10 of {fdInterestReport.deposits.length} deposits
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Connection Test */}

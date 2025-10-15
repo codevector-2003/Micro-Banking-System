@@ -17,6 +17,20 @@ export interface UserResponse {
     employee_id: string | null;
 }
 
+export interface RegisterRequest {
+    username: string;
+    password: string;
+    type: 'Admin' | 'Branch Manager' | 'Agent';
+    employee_id?: string | null;
+}
+
+export interface RegisterResponse {
+    username: string;
+    password: string; // This will be "********" from backend
+    type: 'Admin' | 'Branch Manager' | 'Agent';
+    employee_id: string | null;
+}
+
 export interface ApiError {
     detail: string;
 }
@@ -36,6 +50,21 @@ export class AuthService {
         if (!response.ok) {
             const error: ApiError = await response.json();
             throw new Error(error.detail || 'Login failed');
+        }
+
+        return response.json();
+    }
+
+    static async register(userData: RegisterRequest): Promise<RegisterResponse> {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.AUTH.REGISTER), {
+            method: 'POST',
+            headers: defaultHeaders,
+            body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+            const error: ApiError = await response.json();
+            throw new Error(error.detail || 'Registration failed');
         }
 
         return response.json();
