@@ -2,6 +2,18 @@
 
 A comprehensive micro-banking system built with **FastAPI** backend and **React + TypeScript** frontend, featuring complete authentication, account management, and banking operations.
 
+## 🔑 Quick Start - Default Login Credentials
+
+After running `docker-compose up --build`, login with these credentials:
+
+| **Role** | **Username** | **Password** | **Access Level** |
+|----------|--------------|--------------|------------------|
+| 🔴 **Admin** | `admin` | `password123` | Full system control |
+| 🟡 **Manager** | `manager1` | `password123` | Branch management |
+| 🟢 **Agent** | `agent1` | `password123` | Customer operations |
+
+**🌐 Application URL**: http://localhost:5173
+
 ## 🏗️ System Architecture
 
 ```
@@ -130,6 +142,23 @@ This will:
 - 📚 API Docs: http://localhost:8000/docs
 - 🗄️ PostgreSQL: localhost:5432
 
+### 🔐 Default Login Credentials
+
+The database is automatically initialized with these test accounts:
+
+| Role | Username | Password | Description |
+|------|----------|----------|-------------|
+| **Admin** | `admin` | `password123` | Full system access, user management |
+| **Manager** | `manager1` | `password123` | Branch operations, customer management |
+| **Manager** | `manager2` | `password123` | Branch operations, customer management |
+| **Agent** | `agent1` | `password123` | Customer service, account operations |
+| **Agent** | `agent2` | `password123` | Customer service, account operations |
+
+**🚀 Quick Login Test:**
+1. Go to http://localhost:5173
+2. Use **Username**: `admin` and **Password**: `password123`
+3. Access the Admin Dashboard with full privileges
+
 ### 📁 Docker Configuration Files
 
 The project includes these Docker files:
@@ -207,10 +236,13 @@ Complete database initialization script that automatically creates:
 - **Auto-ID Triggers**: Automatic ID generation for all entities
 - **Views & Materialized Views**: Pre-built queries for reporting
 - **Sample Data**: Ready-to-use test accounts and users
-- **Default Login Credentials**:
-  - Admin: `admin` / `password123`
-  - Manager: `manager1` / `password123` 
-  - Agent: `agent1` / `password123`
+
+**🔑 Includes Pre-configured Login Accounts:**
+- **Admin**: `admin` / `password123` (Full system access)
+- **Manager**: `manager1` / `password123` (Branch management)
+- **Manager**: `manager2` / `password123` (Branch management)
+- **Agent**: `agent1` / `password123` (Customer service)
+- **Agent**: `agent2` / `password123` (Customer service)
 
 ### 🔧 Docker Commands
 
@@ -382,11 +414,13 @@ export const API_BASE_URL = 'http://localhost:8000';
 
 1. **Start both servers** (Backend on :8000, Frontend on :5173)
 2. **Open the application** at http://localhost:5173
-3. **Test authentication**:
-   - Try logging in with valid credentials
-   - Navigate between different role dashboards
-   - Test logout functionality
-4. **Test API connectivity**:
+3. **Test authentication** with default credentials:
+   - **Admin Login**: Username `admin`, Password `password123`
+   - **Manager Login**: Username `manager1`, Password `password123`
+   - **Agent Login**: Username `agent1`, Password `password123`
+4. **Navigate between different role dashboards**
+5. **Test logout functionality**
+6. **Test API connectivity**:
    - Go to Admin Dashboard → Connection Test
    - Click "Test Connection" to verify backend communication
 

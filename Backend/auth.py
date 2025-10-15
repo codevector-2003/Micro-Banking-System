@@ -11,7 +11,7 @@ from database import get_db
 from schemas import Token, TokenData, Etype, AuthenticationCreate, AuthenticationRead
 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
+SECRET_KEY = os.getenv("JWT_SECRET", "your_secret_key")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
