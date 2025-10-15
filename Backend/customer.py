@@ -128,6 +128,190 @@ def get_all_customers(conn=Depends(get_db), current_user=Depends(get_current_use
             status_code=500, detail=f"Database error: {str(e)}")
 
 
+@router.get("/customers/branch", response_model=list[CustomerRead])
+def get_customers_by_branch(conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[CustomerRead]:
+    """
+    Get all customers in the same branch as the current branch manager.
+    Only branch managers can access this endpoint.
+    """
+    user_type = current_user.get('type', '').lower()
+    if user_type != 'branch manager':
+        raise HTTPException(
+            status_code=403, detail="Only branch managers can view branch customers")
+
+    try:
+        employee_id = current_user.get('employee_id')
+
+        # If user doesn't have employee_id, they might be an admin user - reject access
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get branch_id of the current branch manager
+            cursor.execute(
+                "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+            manager_row = cursor.fetchone()
+            if not manager_row or not manager_row['branch_id']:
+                raise HTTPException(
+                    status_code=400, detail="Branch manager does not have a branch assigned")
+
+            branch_id = manager_row['branch_id']
+
+            # Get all customers whose employees belong to the same branch
+            cursor.execute("""
+                SELECT c.customer_id, c.name, c.nic, c.phone_number, c.address, 
+                       c.date_of_birth, c.email, c.status, c.employee_id
+                FROM customer c
+                INNER JOIN employee e ON c.employee_id = e.employee_id
+                WHERE e.branch_id = %s
+                ORDER BY c.name
+            """, (branch_id,))
+
+            rows = cursor.fetchall()
+            return [CustomerRead(**row) for row in rows]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/customers/branch/{branch_id}", response_model=list[CustomerRead])
+def get_customers_by_branch_id(branch_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[CustomerRead]:
+    """
+    Get all customers under a specific branch ID.
+    Only admins and branch managers can access this endpoint.
+    Branch managers can only access their own branch.
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+
+    # Check user permissions
+    if user_type not in ['admin', 'branch_manager']:
+        raise HTTPException(
+            status_code=403, detail="Only admins and branch managers can view customers by branch")
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # If branch manager, verify they can only access their own branch
+            if user_type == 'branch_manager':
+                employee_id = current_user.get('employee_id')
+
+                if not employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="User is not associated with an employee record")
+
+                # Get branch_id of the current branch manager
+                cursor.execute(
+                    "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+                manager_row = cursor.fetchone()
+                if not manager_row or not manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned")
+
+                # Check if the requested branch_id matches the manager's branch
+                if manager_row['branch_id'] != branch_id:
+                    raise HTTPException(
+                        status_code=403, detail="Branch managers can only access customers from their own branch")
+
+            # Verify the branch exists
+            cursor.execute(
+                "SELECT branch_id FROM branch WHERE branch_id = %s", (branch_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Branch not found")
+
+            # Get all customers whose employees belong to the specified branch
+            cursor.execute("""
+                SELECT c.customer_id, c.name, c.nic, c.phone_number, c.address, 
+                       c.date_of_birth, c.email, c.status, c.employee_id
+                FROM customer c
+                INNER JOIN employee e ON c.employee_id = e.employee_id
+                WHERE e.branch_id = %s
+                ORDER BY c.name
+            """, (branch_id,))
+
+            rows = cursor.fetchall()
+            return [CustomerRead(**row) for row in rows]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/customers/branch/{branch_id}/stats")
+def get_branch_customer_stats(branch_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Get customer statistics for a specific branch.
+    Only admins and branch managers can access this endpoint.
+    Branch managers can only access their own branch.
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+
+    # Check user permissions
+    if user_type not in ['admin', 'branch_manager']:
+        raise HTTPException(
+            status_code=403, detail="Only admins and branch managers can view branch statistics")
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # If branch manager, verify they can only access their own branch
+            if user_type == 'branch_manager':
+                employee_id = current_user.get('employee_id')
+
+                if not employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="User is not associated with an employee record")
+
+                # Get branch_id of the current branch manager
+                cursor.execute(
+                    "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+                manager_row = cursor.fetchone()
+                if not manager_row or not manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned")
+
+                # Check if the requested branch_id matches the manager's branch
+                if manager_row['branch_id'] != branch_id:
+                    raise HTTPException(
+                        status_code=403, detail="Branch managers can only access statistics from their own branch")
+
+            # Verify the branch exists
+            cursor.execute(
+                "SELECT branch_id FROM branch WHERE branch_id = %s", (branch_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Branch not found")
+
+            # Get customer statistics for the branch
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_customers,
+                    COUNT(CASE WHEN c.status = true THEN 1 END) as active_customers,
+                    COUNT(CASE WHEN c.status = false THEN 1 END) as inactive_customers,
+                    COUNT(CASE WHEN DATE_TRUNC('month', e.date_started) = DATE_TRUNC('month', CURRENT_DATE) THEN 1 END) as new_customers_this_month
+                FROM customer c
+                INNER JOIN employee e ON c.employee_id = e.employee_id
+                WHERE e.branch_id = %s
+            """, (branch_id,))
+
+            stats = cursor.fetchone()
+            return {
+                "total_customers": stats['total_customers'] or 0,
+                "active_customers": stats['active_customers'] or 0,
+                "inactive_customers": stats['inactive_customers'] or 0,
+                "new_customers_this_month": stats['new_customers_this_month'] or 0,
+                "branch_id": branch_id
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
 @router.put("/customer/update", response_model=CustomerRead)
 def update_customer_details(update_request: CustomerUpdateRequest, conn=Depends(get_db), current_user=Depends(get_current_user)) -> CustomerRead:
 

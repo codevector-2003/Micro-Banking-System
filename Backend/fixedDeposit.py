@@ -249,3 +249,115 @@ def read_fixed_deposit_plans(conn=Depends(get_db)):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/fixed-deposit/branch", response_model=list[FixedDepositRead])
+def get_branch_fixed_deposits(conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Get all fixed deposits in the same branch as the current branch manager.
+    Only branch managers can access this endpoint.
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+    if user_type != 'branch_manager':
+        raise HTTPException(
+            status_code=403, detail="Only branch managers can view branch fixed deposits")
+
+    try:
+        employee_id = current_user.get('employee_id')
+
+        # If user doesn't have employee_id, they might be an admin user - reject access
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get branch_id of the current branch manager
+            cursor.execute(
+                "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+            manager_row = cursor.fetchone()
+            if not manager_row or not manager_row['branch_id']:
+                raise HTTPException(
+                    status_code=400, detail="Branch manager does not have a branch assigned")
+
+            branch_id = manager_row['branch_id']
+
+            # Get all fixed deposits in the same branch
+            cursor.execute("""
+                SELECT fd.fixed_deposit_id, fd.saving_account_id, fd.f_plan_id, fd.start_date, fd.end_date,
+                       fd.principal_amount, fd.interest_payment_type, fd.last_payout_date, fd.status
+                FROM FixedDeposit fd
+                INNER JOIN SavingsAccount sa ON fd.saving_account_id = sa.saving_account_id
+                WHERE sa.branch_id = %s
+                ORDER BY fd.start_date DESC
+            """, (branch_id,))
+
+            rows = cursor.fetchall()
+            return [FixedDepositRead(**row) for row in rows]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/fixed-deposit/branch/stats")
+def get_branch_fixed_deposit_stats(conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Get fixed deposit statistics for the branch manager's branch.
+    Only branch managers can access this endpoint.
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+    if user_type != 'branch_manager':
+        raise HTTPException(
+            status_code=403, detail="Only branch managers can view branch statistics")
+
+    try:
+        employee_id = current_user.get('employee_id')
+
+        # If user doesn't have employee_id, they might be an admin user - reject access
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get branch_id of the current branch manager
+            cursor.execute(
+                "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+            manager_row = cursor.fetchone()
+            if not manager_row or not manager_row['branch_id']:
+                raise HTTPException(
+                    status_code=400, detail="Branch manager does not have a branch assigned")
+
+            branch_id = manager_row['branch_id']
+
+            # Get fixed deposit statistics for the branch
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_fixed_deposits,
+                    COUNT(CASE WHEN fd.status = true THEN 1 END) as active_fixed_deposits,
+                    SUM(CASE WHEN fd.status = true THEN fd.principal_amount ELSE 0 END) as total_principal_amount,
+                    AVG(CASE WHEN fd.status = true THEN fd.principal_amount ELSE NULL END) as average_principal_amount,
+                    COUNT(CASE WHEN DATE_TRUNC('month', fd.start_date) = DATE_TRUNC('month', CURRENT_DATE) THEN 1 END) as new_fds_this_month,
+                    COUNT(CASE WHEN fd.end_date <= CURRENT_DATE AND fd.status = true THEN 1 END) as matured_fds
+                FROM FixedDeposit fd
+                INNER JOIN SavingsAccount sa ON fd.saving_account_id = sa.saving_account_id
+                WHERE sa.branch_id = %s
+            """, (branch_id,))
+
+            stats = cursor.fetchone()
+            return {
+                "total_fixed_deposits": stats['total_fixed_deposits'] or 0,
+                "active_fixed_deposits": stats['active_fixed_deposits'] or 0,
+                "total_principal_amount": float(stats['total_principal_amount'] or 0),
+                "average_principal_amount": float(stats['average_principal_amount'] or 0),
+                "new_fds_this_month": stats['new_fds_this_month'] or 0,
+                "matured_fds": stats['matured_fds'] or 0,
+                "branch_id": branch_id
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")

@@ -103,15 +103,11 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
 @router.get("/employee/all", response_model=list[EmployeeRead])
 def get_all_employees(skip: int = 0, limit: int = 100, conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[EmployeeRead]:
     """
-    Get all employees with pagination.
+    Get all employees with pagination - Admin only.
     """
-    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
+    if current_user.get('type').lower() != 'admin':
         raise HTTPException(
-            status_code=403, detail="Insufficient permissions")
-        # If branch manager, check status is True
-    if current_user.get('type').lower() == 'branch_manager' and not current_user.get('status', False):
-        raise HTTPException(
-            status_code=403, detail="Branch manager account is not active")
+            status_code=403, detail="Only admin can view all employees")
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -125,6 +121,54 @@ def get_all_employees(skip: int = 0, limit: int = 100, conn=Depends(get_db), cur
             rows = cursor.fetchall()
             return [EmployeeRead(**row) for row in rows]
 
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/employee/branch", response_model=list[EmployeeRead])
+def get_branch_employees(conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[EmployeeRead]:
+    """
+    Get employees in the same branch as the current branch manager.
+    Only branch managers can access this endpoint.
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+    if user_type != 'branch_manager':
+        raise HTTPException(
+            status_code=403, detail="Only branch managers can view branch employees")
+
+    try:
+        employee_id = current_user.get('employee_id')
+
+        # If user doesn't have employee_id, they might be an admin user - reject access
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get branch_id of the current branch manager
+            cursor.execute(
+                "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+            manager_row = cursor.fetchone()
+            if not manager_row or not manager_row['branch_id']:
+                raise HTTPException(
+                    status_code=400, detail="Branch manager does not have a branch assigned")
+
+            branch_id = manager_row['branch_id']
+
+            # Get all employees in the same branch
+            cursor.execute("""
+                SELECT employee_id, name, nic, phone_number, address, date_started, last_login_time, type, status, branch_id
+                FROM employee
+                WHERE branch_id = %s
+                ORDER BY name
+            """, (branch_id,))
+
+            rows = cursor.fetchall()
+            return [EmployeeRead(**row) for row in rows]
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
