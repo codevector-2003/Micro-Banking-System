@@ -1,70 +1,23 @@
-import React, {
-  useState,
-  createContext,
-  useContext,
-} from "react";
+import React from "react";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LoginPage } from "./components/LoginPage";
 import { AgentDashboard } from "./components/AgentDashboard";
 import { ManagerDashboard } from "./components/ManagerDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 
-interface User {
-  id: string;
-  username: string;
-  role: "Admin" | "Branch Manager" | "Agent";
-  branchId?: string;
-  employeeId: string;
-}
+function AppContent() {
+  const { user, loading } = useAuth();
 
-interface AuthContextType {
-  user: User | null;
-  login: (
-    username: string,
-    password: string,
-    role: string,
-  ) => boolean;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error(
-      "useAuth must be used within an AuthProvider",
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
     );
   }
-  return context;
-};
-
-export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-
-  // Mock authentication - in real app this would call API
-  const login = (
-    username: string,
-    password: string,
-    role: string,
-  ): boolean => {
-    // Mock validation
-    if (username && password && role) {
-      const mockUser: User = {
-        id: `user_${Date.now()}`,
-        username,
-        role: role as "Admin" | "Branch Manager" | "Agent",
-        branchId: role === "Admin" ? undefined : "branch_001",
-        employeeId: `emp_${Date.now()}`,
-      };
-      setUser(mockUser);
-      return true;
-    }
-    return false;
-  };
-
-  const logout = () => {
-    setUser(null);
-  };
 
   const renderDashboard = () => {
     if (!user) return null;
@@ -82,10 +35,16 @@ export default function App() {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      <div className="min-h-screen bg-gray-50">
-        {!user ? <LoginPage /> : renderDashboard()}
-      </div>
-    </AuthContext.Provider>
+    <div className="min-h-screen bg-gray-50">
+      {!user ? <LoginPage /> : renderDashboard()}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

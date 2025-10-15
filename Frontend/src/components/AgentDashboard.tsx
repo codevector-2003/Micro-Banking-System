@@ -1,449 +1,539 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { useAuth } from '../App';
-import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users, Loader2, Edit, Save, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
-
-// Updated savings plans based on requirements
-const savingsPlans = [
-  { id: 'children', name: 'Children', minBalance: 0, interestRate: 12, ageRequirement: 'Under 18' },
-  { id: 'teen', name: 'Teen', minBalance: 500, interestRate: 11, ageRequirement: '13-17' },
-  { id: 'adult', name: 'Adult', minBalance: 1000, interestRate: 10, ageRequirement: '18+' },
-  { id: 'senior', name: 'Senior', minBalance: 1000, interestRate: 13, ageRequirement: '60+' },
-  { id: 'joint', name: 'Joint', minBalance: 5000, interestRate: 7, ageRequirement: 'Multiple holders' }
-];
-
-const fdPlans = [
-  { id: 'fd_6m', name: '6 Months', duration: 6, rate: 5.5 },
-  { id: 'fd_1y', name: '1 Year', duration: 12, rate: 6.5 },
-  { id: 'fd_3y', name: '3 Years', duration: 36, rate: 7.5 }
-];
-
-// Mock data with multiple accounts per customer
-const mockCustomers = [
-  {
-    customerId: 'CUST001',
-    name: 'John Smith',
-    nic: '199012345678',
-    phoneNumber: '+94-71-1234567',
-    address: '123 Main Street, Colombo 03',
-    dateOfBirth: '1990-05-15',
-    email: 'john.smith@email.com',
-    status: 'Active',
-    savingsAccounts: [
-      {
-        savingAccountId: 'SA001234567',
-        openDate: '2023-01-15',
-        balance: 25500,
-        sPlanId: 'adult',
-        planName: 'Adult',
-        interestRate: 10,
-        minBalance: 1000,
-        status: 'Active'
-      },
-      {
-        savingAccountId: 'SA001234568',
-        openDate: '2023-06-20',
-        balance: 15000,
-        sPlanId: 'senior',
-        planName: 'Senior',
-        interestRate: 13,
-        minBalance: 1000,
-        status: 'Active'
-      }
-    ],
-    fixedDeposits: [
-      {
-        fixedDepositId: 'FD001',
-        savingAccountId: 'SA001234567',
-        startDate: '2023-06-01',
-        endDate: '2024-06-01',
-        principalAmount: 50000,
-        fPlanId: 'fd_1y',
-        planName: '1 Year',
-        interestRate: 6.5,
-        lastPayoutDate: '2024-01-01',
-        status: true
-      }
-    ],
-    transactions: [
-      { transactionId: 'TXN001', savingAccountId: 'SA001234567', type: 'Deposit', amount: 5000, timestamp: '2024-01-15 10:30', refNumber: 'REF001', description: 'Cash deposit' },
-      { transactionId: 'TXN002', savingAccountId: 'SA001234567', type: 'Withdrawal', amount: -2000, timestamp: '2024-01-10 14:20', refNumber: 'REF002', description: 'ATM withdrawal' },
-      { transactionId: 'TXN003', savingAccountId: 'SA001234568', type: 'Deposit', amount: 10000, timestamp: '2024-01-08 11:15', refNumber: 'REF003', description: 'Initial deposit' },
-      { transactionId: 'TXN004', savingAccountId: 'SA001234567', type: 'Interest', amount: 275, timestamp: '2024-01-01 00:00', refNumber: 'INT001', description: 'Monthly interest' }
-    ]
-  },
-  {
-    customerId: 'CUST002',
-    name: 'Mary Johnson',
-    nic: '198503456789',
-    phoneNumber: '+94-77-9876543',
-    address: '456 Oak Avenue, Colombo 05',
-    dateOfBirth: '1985-08-22',
-    email: 'mary.johnson@email.com',
-    status: 'Active',
-    savingsAccounts: [
-      {
-        savingAccountId: 'SA002345678',
-        openDate: '2022-11-10',
-        balance: 45000,
-        sPlanId: 'adult',
-        planName: 'Adult',
-        interestRate: 10,
-        minBalance: 1000,
-        status: 'Active'
-      },
-      {
-        savingAccountId: 'SA002345679',
-        openDate: '2023-03-15',
-        balance: 12000,
-        sPlanId: 'joint',
-        planName: 'Joint',
-        interestRate: 7,
-        minBalance: 5000,
-        status: 'Active',
-        holders: ['CUST002', 'CUST001']
-      },
-      {
-        savingAccountId: 'SA002345680',
-        openDate: '2023-08-05',
-        balance: 8500,
-        sPlanId: 'adult',
-        planName: 'Adult',
-        interestRate: 10,
-        minBalance: 1000,
-        status: 'Active'
-      }
-    ],
-    fixedDeposits: [],
-    transactions: [
-      { transactionId: 'TXN101', savingAccountId: 'SA002345678', type: 'Deposit', amount: 15000, timestamp: '2024-01-12 09:30', refNumber: 'REF101', description: 'Cash deposit' },
-      { transactionId: 'TXN102', savingAccountId: 'SA002345679', type: 'Deposit', amount: 5000, timestamp: '2024-01-10 14:20', refNumber: 'REF102', description: 'Joint account deposit' }
-    ]
-  },
-  {
-    customerId: 'CUST003',
-    name: 'Sarah Williams',
-    nic: '199505123456',
-    phoneNumber: '+94-76-5551234',
-    address: '789 Lake Road, Colombo 07',
-    dateOfBirth: '1995-03-10',
-    email: 'sarah.williams@email.com',
-    status: 'Active',
-    savingsAccounts: [],
-    fixedDeposits: [],
-    transactions: []
-  }
-];
-
-const mockBranchInfo = {
-  branchId: 'BR001',
-  name: 'Colombo Main Branch',
-  address: '456 Bank Street, Colombo 01',
-  managerName: 'Ms. Priya Fernando'
-};
-
-const mockAgentTransactions = [
-  { id: 'AGT001', customerName: 'John Smith', type: 'Deposit', amount: 5000, timestamp: '2024-01-15 10:30' },
-  { id: 'AGT002', customerName: 'Mary Johnson', type: 'Withdrawal', amount: -1500, timestamp: '2024-01-15 09:15' },
-  { id: 'AGT003', customerName: 'David Wilson', type: 'FD Opening', amount: 25000, timestamp: '2024-01-14 16:45' },
-  { id: 'AGT004', customerName: 'Sarah Davis', type: 'Deposit', amount: 3000, timestamp: '2024-01-14 11:20' },
-  { id: 'AGT005', customerName: 'Mike Brown', type: 'Withdrawal', amount: -800, timestamp: '2024-01-13 15:30' }
-];
+import {
+  CustomerService,
+  SavingsAccountService,
+  TransactionService,
+  FixedDepositService,
+  JointAccountService,
+  handleApiError,
+  type Customer,
+  type SavingsAccount,
+  type Transaction,
+  type FixedDeposit,
+  type FixedDepositPlan
+} from '../services/agentService';
+import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
 
 export function AgentDashboard() {
   const { user, logout } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint'>('home');
-  const [searchType, setSearchType] = useState('customerId');
+  const [searchType, setSearchType] = useState('customer_id');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomerAccounts, setSelectedCustomerAccounts] = useState<SavingsAccount[]>([]);
+  const [selectedCustomerTransactions, setSelectedCustomerTransactions] = useState<any[]>([]);
+  const [selectedCustomerFixedDeposits, setSelectedCustomerFixedDeposits] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [transactionAmount, setTransactionAmount] = useState('');
   const [transactionType, setTransactionType] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
   const [fdAmount, setFdAmount] = useState('');
   const [selectedFdPlan, setSelectedFdPlan] = useState('');
   const [fdAccountId, setFdAccountId] = useState('');
+
+  // Customer editing state
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Data from APIs
+  const [savingsPlans, setSavingsPlans] = useState<SavingsPlan[]>([]);
+  const [fdPlans, setFdPlans] = useState<FixedDepositPlan[]>([]);
+  const [customerTransactions, setCustomerTransactions] = useState<Transaction[]>([]);
+  const [customerFixedDeposits, setCustomerFixedDeposits] = useState<FixedDeposit[]>([]);
 
   // Customer registration form state
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     nic: '',
-    phoneNumber: '',
+    phone_number: '',
     address: '',
-    dateOfBirth: '',
+    date_of_birth: '',
     email: ''
   });
 
   // New savings account form state
   const [newAccount, setNewAccount] = useState({
-    customerId: '',
-    accountType: '',
-    initialDeposit: ''
+    customer_id: '',
+    s_plan_id: '',
+    initial_balance: ''
   });
 
   // Joint account form state
   const [jointAccount, setJointAccount] = useState({
-    customerId1: '',
-    customerId2: '',
-    initialDeposit: ''
+    primary_customer_id: '',
+    secondary_customer_id: '',
+    initial_balance: ''
   });
+
+  // Load initial data when component mounts
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    if (!user?.token) return;
+
+    try {
+      setLoading(true);
+      const [plansData, fdPlansData] = await Promise.all([
+        SavingsPlansService.getAllSavingsPlans(user.token),
+        FixedDepositService.getFixedDepositPlans(user.token)
+      ]);
+      setSavingsPlans(plansData);
+      setFdPlans(fdPlansData);
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+      setError('Failed to load initial data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Helper to change view and clear messages
   const changeView = (view: 'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint') => {
     setError('');
     setSuccess('');
+
+    // Clear customer data when navigating away from customer view
+    if (view !== 'customer') {
+      setSelectedCustomer(null);
+      setSelectedCustomerAccounts([]);
+      setSelectedCustomerTransactions([]);
+      setSelectedCustomerFixedDeposits([]);
+      setSelectedAccountId('');
+      setFdAccountId('');
+      setTransactionAmount('');
+      setTransactionType('');
+      setEditingCustomer(null);
+    }
+
     setCurrentView(view);
   };
 
-  const handleCustomerSearch = () => {
+  const handleCustomerSearch = async () => {
+    if (!user?.token) return;
+
     setError('');
+    setLoading(true);
+
     if (!searchQuery.trim()) {
       setError('Please enter a search value');
+      setLoading(false);
       return;
     }
 
-    let customer = null;
-    if (searchType === 'customerId') {
-      customer = mockCustomers.find(c => c.customerId.includes(searchQuery.toUpperCase()));
-    } else if (searchType === 'nic') {
-      customer = mockCustomers.find(c => c.nic.includes(searchQuery));
-    } else if (searchType === 'savingAccountId') {
-      customer = mockCustomers.find(c => 
-        c.savingsAccounts.some(acc => acc.savingAccountId.includes(searchQuery.toUpperCase()))
-      );
-    }
+    try {
+      let searchParams: any = {};
 
-    if (customer) {
-      setSelectedCustomer(customer);
-      if (customer.savingsAccounts.length > 0) {
-        setSelectedAccountId(customer.savingsAccounts[0].savingAccountId);
-        setFdAccountId(customer.savingsAccounts[0].savingAccountId);
+      if (searchType === 'customer_id') {
+        searchParams.customer_id = searchQuery.toUpperCase();
+      } else if (searchType === 'nic') {
+        searchParams.nic = searchQuery;
+      } else if (searchType === 'saving_account_id') {
+        // First search for accounts, then get customer
+        const accounts = await SavingsAccountService.searchSavingsAccounts({
+          saving_account_id: searchQuery.toUpperCase()
+        }, user.token);
+
+        if (accounts.length > 0) {
+          searchParams.customer_id = accounts[0].customer_id;
+        } else {
+          setError('Account not found');
+          return;
+        }
       }
-      setCurrentView('customer');
-      setSuccess('Customer found successfully');
-    } else {
-      setError('Customer not found. Please check your search criteria.');
+
+      const customers = await CustomerService.searchCustomers(searchParams, user.token);
+
+      if (customers.length > 0) {
+        const customer = customers[0];
+        setSelectedCustomer(customer);
+
+        // Clear previous customer data first
+        setSelectedCustomerTransactions([]);
+        setSelectedCustomerFixedDeposits([]);
+
+        // Load customer's accounts
+        const accounts = await SavingsAccountService.searchSavingsAccounts({
+          customer_id: customer.customer_id
+        }, user.token);
+        setSelectedCustomerAccounts(accounts);
+
+        if (accounts.length > 0) {
+          setSelectedAccountId(accounts[0].saving_account_id);
+          setFdAccountId(accounts[0].saving_account_id);
+
+          // Load transactions and FDs for all accounts of this customer
+          await loadAllCustomerData(accounts);
+        } else {
+          // No accounts found - ensure the transaction lists are empty
+          setSelectedCustomerTransactions([]);
+          setSelectedCustomerFixedDeposits([]);
+        }
+
+        setCurrentView('customer');
+        setSuccess('Customer found successfully');
+      } else {
+        setError('Customer not found. Please check your search criteria.');
+      }
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleTransaction = () => {
-    setError('');
-    setSuccess('');
+  const loadCustomerData = async (savingAccountId: string) => {
+    if (!user?.token) return;
 
-    if (!selectedCustomer || !transactionAmount || !transactionType || !selectedAccountId) {
+    try {
+      const [transactions, fixedDeposits] = await Promise.all([
+        TransactionService.getTransactionHistory(savingAccountId, user.token),
+        FixedDepositService.searchFixedDeposits(savingAccountId, user.token)
+      ]);
+
+      setSelectedCustomerTransactions(transactions);
+      setSelectedCustomerFixedDeposits(fixedDeposits);
+    } catch (error) {
+      console.error('Failed to load customer data:', error);
+    }
+  };
+
+  const handleAccountChange = async (accountId: string) => {
+    setSelectedAccountId(accountId);
+    setFdAccountId(accountId);
+
+    // Reload transaction history for the selected account
+    if (accountId && user?.token) {
+      try {
+        const transactions = await TransactionService.getTransactionHistory(accountId, user.token);
+        setSelectedCustomerTransactions(transactions);
+      } catch (error) {
+        console.error('Failed to load transactions for account:', error);
+      }
+    }
+  };
+
+  const loadAllCustomerData = async (accounts: SavingsAccount[]) => {
+    if (!user?.token || accounts.length === 0) return;
+
+    try {
+      // Load transactions and fixed deposits for all accounts
+      const allTransactions: Transaction[] = [];
+      const allFixedDeposits: FixedDeposit[] = [];
+
+      for (const account of accounts) {
+        try {
+          const [transactions, fixedDeposits] = await Promise.all([
+            TransactionService.getTransactionHistory(account.saving_account_id, user.token),
+            FixedDepositService.searchFixedDeposits(account.saving_account_id, user.token)
+          ]);
+
+          allTransactions.push(...transactions);
+          allFixedDeposits.push(...fixedDeposits);
+        } catch (error) {
+          console.error(`Failed to load data for account ${account.saving_account_id}:`, error);
+          // Continue with other accounts even if one fails
+        }
+      }
+
+      // Sort transactions by timestamp (newest first)
+      allTransactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      setSelectedCustomerTransactions(allTransactions);
+      setSelectedCustomerFixedDeposits(allFixedDeposits);
+    } catch (error) {
+      console.error('Failed to load all customer data:', error);
+    }
+  };
+
+  const handleTransaction = async () => {
+    if (!user?.token || !selectedCustomer || !transactionAmount || !transactionType || !selectedAccountId) {
       setError('Please fill in all transaction details and select an account');
       return;
     }
 
-    const amount = parseFloat(transactionAmount);
-    const account = selectedCustomer.savingsAccounts.find((acc: any) => acc.savingAccountId === selectedAccountId);
-
-    if (!account) {
-      setError('Selected account not found');
-      return;
-    }
-
-    if (transactionType === 'Withdrawal') {
-      const remainingBalance = account.balance - amount;
-      if (remainingBalance < account.minBalance) {
-        setError(`Withdrawal denied. Minimum balance of LKR ${account.minBalance.toLocaleString()} must be maintained. Available for withdrawal: LKR ${(account.balance - account.minBalance).toLocaleString()}`);
-        return;
-      }
-    }
-
-    const currentHour = new Date().getHours();
-    if (currentHour < 9 || currentHour > 17) {
-      setError('Transactions are only allowed during business hours (9 AM - 5 PM)');
-      return;
-    }
-
-    const newTransaction = {
-      transactionId: `TXN${Date.now()}`,
-      savingAccountId: selectedAccountId,
-      type: transactionType,
-      amount: transactionType === 'Withdrawal' ? -amount : amount,
-      timestamp: new Date().toLocaleString(),
-      refNumber: `REF${Date.now()}`,
-      description: `${transactionType} by agent ${user?.username}`
-    };
-
-    selectedCustomer.transactions.unshift(newTransaction);
-    account.balance += newTransaction.amount;
-
-    setSuccess(`${transactionType} of LKR ${amount.toLocaleString()} processed successfully for account ${selectedAccountId}. New balance: LKR ${account.balance.toLocaleString()}`);
-    setTransactionAmount('');
-    setTransactionType('');
-  };
-
-  const handleFdCreation = () => {
     setError('');
     setSuccess('');
+    setLoading(true);
 
-    if (!selectedCustomer || !fdAmount || !selectedFdPlan || !fdAccountId) {
+    try {
+      const amount = parseFloat(transactionAmount);
+      const selectedAccount = selectedCustomerAccounts.find(acc => acc.saving_account_id === selectedAccountId);
+
+      if (!selectedAccount) {
+        setError('Selected account not found');
+        return;
+      }
+
+      // Find holder_id - we'll need to get this from the account holder relationship
+      // For now, we'll use the account ID as holder ID (this might need adjustment based on your backend)
+      const holderId = selectedAccount.saving_account_id; // This may need to be adjusted
+
+      const transactionData = {
+        saving_account_id: selectedAccountId,
+        type: transactionType as 'Deposit' | 'Withdrawal' | 'Interest',
+        amount: amount,
+        description: `${transactionType} by agent ${user.username}`
+      };
+
+      const newTransaction = await TransactionService.createTransaction(transactionData, user.token);
+
+      // Update local state
+      setSelectedCustomerTransactions(prev => [newTransaction, ...prev]);
+
+      // Update account balance locally (the backend will have updated it)
+      const updatedAccounts = selectedCustomerAccounts.map(acc =>
+        acc.saving_account_id === selectedAccountId
+          ? { ...acc, balance: transactionType === 'Withdrawal' ? Number(acc.balance) - amount : Number(acc.balance) + amount }
+          : acc
+      );
+      setSelectedCustomerAccounts(updatedAccounts);
+
+      setSuccess(`${transactionType} of LKR ${amount.toLocaleString()} processed successfully for account ${selectedAccountId}`);
+      setTransactionAmount('');
+      setTransactionType('');
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFdCreation = async () => {
+    if (!user?.token || !selectedCustomer || !fdAmount || !selectedFdPlan || !fdAccountId) {
       setError('Please fill in all FD details and select an account');
       return;
     }
 
-    const amount = parseFloat(fdAmount);
-    const account = selectedCustomer.savingsAccounts.find((acc: any) => acc.savingAccountId === fdAccountId);
-
-    if (!account) {
-      setError('Selected account not found');
-      return;
-    }
-
-    if (account.balance < amount) {
-      setError(`Insufficient balance in account ${fdAccountId}. Current balance: LKR ${account.balance.toLocaleString()}`);
-      return;
-    }
-
-    const hasActiveFD = selectedCustomer.fixedDeposits.some((fd: any) => fd.savingAccountId === fdAccountId && fd.status === true);
-    if (hasActiveFD) {
-      setError('This account already has an active Fixed Deposit. Only one FD per account is allowed.');
-      return;
-    }
-
-    const selectedPlan = fdPlans.find(plan => plan.id === selectedFdPlan);
-    if (!selectedPlan) {
-      setError('Invalid FD plan selected');
-      return;
-    }
-
-    const newFD = {
-      fixedDepositId: `FD${Date.now()}`,
-      savingAccountId: fdAccountId,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + selectedPlan.duration * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      principalAmount: amount,
-      fPlanId: selectedPlan.id,
-      planName: selectedPlan.name,
-      interestRate: selectedPlan.rate,
-      lastPayoutDate: null,
-      status: true
-    };
-
-    selectedCustomer.fixedDeposits.push(newFD);
-    account.balance -= amount;
-
-    setSuccess(`Fixed Deposit of LKR ${amount.toLocaleString()} created successfully for account ${fdAccountId}. ${selectedPlan.name} plan (${selectedPlan.rate}% p.a.). Maturity: ${newFD.endDate}`);
-    setFdAmount('');
-    setSelectedFdPlan('');
-  };
-
-  const handleRegisterCustomer = () => {
     setError('');
     setSuccess('');
-    
-    if (!newCustomer.name || !newCustomer.nic || !newCustomer.dateOfBirth) {
+    setLoading(true);
+
+    try {
+      const amount = parseFloat(fdAmount);
+      const selectedAccount = selectedCustomerAccounts.find(acc => acc.saving_account_id === fdAccountId);
+
+      if (!selectedAccount) {
+        setError('Selected account not found');
+        return;
+      }
+
+      if (Number(selectedAccount.balance) < amount) {
+        setError(`Insufficient balance in account ${fdAccountId}. Current balance: LKR ${Number(selectedAccount.balance).toLocaleString()}`);
+        return;
+      }
+
+      const selectedPlan = fdPlans.find(plan => plan.f_plan_id === selectedFdPlan);
+      if (!selectedPlan) {
+        setError('Invalid FD plan selected');
+        return;
+      }
+
+      const fdData = {
+        saving_account_id: fdAccountId,
+        f_plan_id: selectedFdPlan,
+        principal_amount: amount,
+        interest_payment_type: true // Default to monthly interest
+      };
+
+      const newFD = await FixedDepositService.createFixedDeposit(fdData, user.token);
+
+      // Update local state
+      setSelectedCustomerFixedDeposits(prev => [...prev, newFD]);
+
+      // Update account balance
+      const updatedAccounts = selectedCustomerAccounts.map(acc =>
+        acc.saving_account_id === fdAccountId
+          ? { ...acc, balance: Number(acc.balance) - amount }
+          : acc
+      );
+      setSelectedCustomerAccounts(updatedAccounts);
+
+      setSuccess(`Fixed Deposit of LKR ${amount.toLocaleString()} created successfully for account ${fdAccountId}. ${selectedPlan.months} months plan (${selectedPlan.interest_rate}% p.a.)`);
+      setFdAmount('');
+      setSelectedFdPlan('');
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterCustomer = async () => {
+    if (!user?.token) return;
+
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    if (!newCustomer.name || !newCustomer.nic || !newCustomer.date_of_birth) {
       setError('Please fill in all required fields (Name, NIC, Date of Birth)');
+      setLoading(false);
       return;
     }
 
-    const existingCustomer = mockCustomers.find(c => c.nic === newCustomer.nic);
-    if (existingCustomer) {
-      setError('A customer with this NIC already exists');
-      return;
-    }
+    try {
+      const customerData = {
+        ...newCustomer,
+        status: true
+      };
 
-    setSuccess(`Customer "${newCustomer.name}" registered successfully! Customer ID: CUST${Date.now().toString().slice(-3)}`);
-    setNewCustomer({
-      name: '',
-      nic: '',
-      phoneNumber: '',
-      address: '',
-      dateOfBirth: '',
-      email: ''
-    });
+      const createdCustomer = await CustomerService.createCustomer(customerData, user.token);
+
+      setSuccess(`Customer "${createdCustomer.name}" registered successfully! Customer ID: ${createdCustomer.customer_id}`);
+      setNewCustomer({
+        name: '',
+        nic: '',
+        phone_number: '',
+        address: '',
+        date_of_birth: '',
+        email: ''
+      });
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
+    if (!user?.token) return;
+
     setError('');
     setSuccess('');
+    setLoading(true);
 
-    if (!newAccount.customerId || !newAccount.accountType || !newAccount.initialDeposit) {
+    if (!newAccount.customer_id || !newAccount.s_plan_id || !newAccount.initial_balance) {
       setError('Please fill in all required fields');
+      setLoading(false);
       return;
     }
 
-    const customer = mockCustomers.find(c => c.customerId === newAccount.customerId);
-    if (!customer) {
-      setError('Customer not found');
-      return;
-    }
+    try {
+      const selectedPlan = savingsPlans.find(plan => plan.s_plan_id === newAccount.s_plan_id);
+      if (!selectedPlan) {
+        setError('Invalid account type selected');
+        return;
+      }
 
-    const selectedPlan = savingsPlans.find(plan => plan.id === newAccount.accountType && plan.id !== 'joint');
-    if (!selectedPlan) {
-      setError('Invalid account type selected. Use "Create Joint Account" for joint accounts.');
-      return;
-    }
+      const initialAmount = parseFloat(newAccount.initial_balance);
+      if (initialAmount < selectedPlan.min_balance) {
+        setError(`Initial deposit must be at least LKR ${selectedPlan.min_balance.toLocaleString()} for ${selectedPlan.plan_name} account`);
+        return;
+      }
 
-    const initialAmount = parseFloat(newAccount.initialDeposit);
-    if (initialAmount < selectedPlan.minBalance) {
-      setError(`Initial deposit must be at least LKR ${selectedPlan.minBalance.toLocaleString()} for ${selectedPlan.name} account`);
-      return;
-    }
+      const accountData = {
+        open_date: new Date().toISOString(),
+        balance: initialAmount,
+        s_plan_id: newAccount.s_plan_id,
+        status: true
+      };
 
-    setSuccess(`${selectedPlan.name} account created successfully for ${customer.name}! Account ID: SA${Date.now().toString().slice(-9)}`);
-    setNewAccount({
-      customerId: '',
-      accountType: '',
-      initialDeposit: ''
-    });
+      const createdAccount = await SavingsAccountService.createSavingsAccount(accountData, newAccount.customer_id, user.token);
+
+      setSuccess(`${selectedPlan.plan_name} account created successfully! Account ID: ${createdAccount.saving_account_id}`);
+      setNewAccount({
+        customer_id: '',
+        s_plan_id: '',
+        initial_balance: ''
+      });
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateJointAccount = () => {
+  const handleCreateJointAccount = async () => {
+    if (!user?.token) return;
+
     setError('');
     setSuccess('');
+    setLoading(true);
 
-    if (!jointAccount.customerId1 || !jointAccount.customerId2) {
-      setError('Please enter both customer IDs');
+    if (!jointAccount.primary_customer_id || !jointAccount.secondary_customer_id || !jointAccount.initial_balance) {
+      setError('Please fill in all required fields');
+      setLoading(false);
       return;
     }
 
-    if (jointAccount.customerId1 === jointAccount.customerId2) {
+    if (jointAccount.primary_customer_id === jointAccount.secondary_customer_id) {
       setError('Customer IDs must be different');
+      setLoading(false);
       return;
     }
 
-    if (!jointAccount.initialDeposit) {
-      setError('Please enter initial deposit amount');
-      return;
+    try {
+      const jointPlan = savingsPlans.find(plan => plan.s_plan_id === 'JO001');
+      const initialAmount = parseFloat(jointAccount.initial_balance);
+
+      if (initialAmount < (jointPlan?.min_balance || 5000)) {
+        setError(`Initial deposit must be at least LKR ${(jointPlan?.min_balance || 5000).toLocaleString()} for joint account`);
+        return;
+      }
+
+      const jointAccountData = {
+        primary_customer_id: jointAccount.primary_customer_id,
+        secondary_customer_id: jointAccount.secondary_customer_id,
+        initial_balance: initialAmount,
+        s_plan_id: 'JO001'  // Use the correct joint plan ID
+      };
+
+      const createdJointAccount = await JointAccountService.createJointAccount(jointAccountData, user.token);
+
+      setSuccess(`Joint account created successfully for customers ${jointAccount.primary_customer_id} and ${jointAccount.secondary_customer_id}. Account ID: ${createdJointAccount.saving_account_id}`);
+      setJointAccount({
+        primary_customer_id: '',
+        secondary_customer_id: '',
+        initial_balance: ''
+      });
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const customer1 = mockCustomers.find(c => c.customerId === jointAccount.customerId1);
-    const customer2 = mockCustomers.find(c => c.customerId === jointAccount.customerId2);
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer({ ...customer });
+  };
 
-    if (!customer1) {
-      setError(`Customer ID ${jointAccount.customerId1} not found`);
-      return;
+  const handleUpdateCustomer = async () => {
+    if (!user?.token || !editingCustomer) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { customer_id, employee_id, ...updates } = editingCustomer;
+      const updatedCustomer = await CustomerService.updateCustomer(customer_id, updates, user.token);
+
+      // Update the selected customer with new data
+      setSelectedCustomer(updatedCustomer);
+
+      setSuccess('Customer updated successfully');
+      setEditingCustomer(null);
+    } catch (error) {
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (!customer2) {
-      setError(`Customer ID ${jointAccount.customerId2} not found`);
-      return;
-    }
-
-    const jointPlan = savingsPlans.find(plan => plan.id === 'joint');
-    const initialAmount = parseFloat(jointAccount.initialDeposit);
-    
-    if (initialAmount < (jointPlan?.minBalance || 5000)) {
-      setError(`Initial deposit must be at least LKR ${jointPlan?.minBalance.toLocaleString()} for joint account`);
-      return;
-    }
-
-    setSuccess(`Joint account created successfully for: ${customer1.name} and ${customer2.name}. Account ID: SA${Date.now().toString().slice(-9)}`);
-    setJointAccount({
-      customerId1: '',
-      customerId2: '',
-      initialDeposit: ''
-    });
+  const handleCancelEdit = () => {
+    setEditingCustomer(null);
+    setError('');
   };
 
   const renderHomeScreen = () => (
@@ -454,9 +544,9 @@ export function AgentDashboard() {
             <div>
               <h2 className="text-2xl font-semibold mb-2">Welcome, {user?.username}!</h2>
               <div className="space-y-1 text-sm text-gray-600">
-                <p><strong>Branch:</strong> {mockBranchInfo.name}</p>
-                <p><strong>Address:</strong> {mockBranchInfo.address}</p>
-                <p><strong>Manager:</strong> {mockBranchInfo.managerName}</p>
+                <p><strong>Branch:</strong> Main Branch</p>
+                <p><strong>Address:</strong> 123 Banking Street, Colombo</p>
+                <p><strong>Manager:</strong> Manager Name</p>
               </div>
             </div>
             <div className="text-right">
@@ -530,7 +620,7 @@ export function AgentDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {mockAgentTransactions.slice(0, 5).map((txn) => (
+            {[].slice(0, 5).map((txn: any) => (
               <div key={txn.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                 <div>
                   <p className="text-sm font-medium">{txn.customerName}</p>
@@ -544,6 +634,9 @@ export function AgentDashboard() {
                 </div>
               </div>
             ))}
+            {[].length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-4">No recent transactions</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -573,9 +666,9 @@ export function AgentDashboard() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="customerId">Customer ID</SelectItem>
+                  <SelectItem value="customer_id">Customer ID</SelectItem>
                   <SelectItem value="nic">NIC Number</SelectItem>
-                  <SelectItem value="savingAccountId">Savings Account ID</SelectItem>
+                  <SelectItem value="saving_account_id">Savings Account ID</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -583,13 +676,14 @@ export function AgentDashboard() {
               <Label>Search Value</Label>
               <div className="flex space-x-2">
                 <Input
-                  placeholder={`Enter ${searchType === 'customerId' ? 'Customer ID' : searchType === 'nic' ? 'NIC Number' : 'Account ID'}`}
+                  placeholder={`Enter ${searchType === 'customer_id' ? 'Customer ID' : searchType === 'nic' ? 'NIC Number' : 'Account ID'}`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1"
+                  disabled={loading}
                 />
-                <Button onClick={handleCustomerSearch}>
-                  <Search className="h-4 w-4 mr-2" />
+                <Button onClick={handleCustomerSearch} disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Search
                 </Button>
               </div>
@@ -631,51 +725,51 @@ export function AgentDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Customer Name *</Label>
-              <Input 
-                placeholder="Enter full name" 
+              <Input
+                placeholder="Enter full name"
                 value={newCustomer.name}
-                onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
               />
             </div>
             <div>
               <Label>NIC Number *</Label>
-              <Input 
-                placeholder="Enter NIC number" 
+              <Input
+                placeholder="Enter NIC number"
                 value={newCustomer.nic}
-                onChange={(e) => setNewCustomer({...newCustomer, nic: e.target.value})}
+                onChange={(e) => setNewCustomer({ ...newCustomer, nic: e.target.value })}
               />
             </div>
             <div>
               <Label>Date of Birth *</Label>
-              <Input 
-                type="date" 
-                value={newCustomer.dateOfBirth}
-                onChange={(e) => setNewCustomer({...newCustomer, dateOfBirth: e.target.value})}
+              <Input
+                type="date"
+                value={newCustomer.date_of_birth}
+                onChange={(e) => setNewCustomer({ ...newCustomer, date_of_birth: e.target.value })}
               />
             </div>
             <div>
               <Label>Phone Number</Label>
-              <Input 
-                placeholder="Enter phone number" 
-                value={newCustomer.phoneNumber}
-                onChange={(e) => setNewCustomer({...newCustomer, phoneNumber: e.target.value})}
+              <Input
+                placeholder="Enter phone number"
+                value={newCustomer.phone_number}
+                onChange={(e) => setNewCustomer({ ...newCustomer, phone_number: e.target.value })}
               />
             </div>
             <div>
               <Label>Email</Label>
-              <Input 
-                type="email" 
-                placeholder="Enter email" 
+              <Input
+                type="email"
+                placeholder="Enter email"
                 value={newCustomer.email}
-                onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
               />
             </div>
             <div>
               <Label>Address</Label>
-              <Input 
-                placeholder="Enter address" 
+              <Input
+                placeholder="Enter address"
                 value={newCustomer.address}
-                onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
               />
             </div>
           </div>
@@ -724,35 +818,27 @@ export function AgentDashboard() {
         <CardContent className="space-y-4">
           <div>
             <Label>Customer ID *</Label>
-            <Select value={newAccount.customerId} onValueChange={(val) => setNewAccount({...newAccount, customerId: val})}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Customer" />
-              </SelectTrigger>
-              <SelectContent>
-                {mockCustomers.map((customer) => (
-                  <SelectItem key={customer.customerId} value={customer.customerId}>
-                    {customer.customerId} - {customer.name} ({customer.nic})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              placeholder="Enter Customer ID"
+              value={newAccount.customer_id}
+              onChange={(e) => setNewAccount({ ...newAccount, customer_id: e.target.value })}
+            />
           </div>
 
           <div className="space-y-4">
             <Label>Account Type *</Label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {savingsPlans.filter(plan => plan.id !== 'joint').map((plan) => (
-                <Card 
-                  key={plan.id} 
-                  className={`cursor-pointer transition-all ${newAccount.accountType === plan.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
-                  onClick={() => setNewAccount({...newAccount, accountType: plan.id})}
+              {savingsPlans.filter(plan => plan.s_plan_id !== 'JO001').map((plan) => (
+                <Card
+                  key={plan.s_plan_id}
+                  className={`cursor-pointer transition-all ${newAccount.s_plan_id === plan.s_plan_id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
+                  onClick={() => setNewAccount({ ...newAccount, s_plan_id: plan.s_plan_id })}
                 >
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-2">{plan.name}</h4>
+                    <h4 className="font-medium mb-2">{plan.plan_name}</h4>
                     <div className="space-y-1 text-sm text-gray-600">
-                      <p>Interest: {plan.interestRate}%</p>
-                      <p>Min Balance: {plan.minBalance === 0 ? 'None' : `LKR ${plan.minBalance.toLocaleString()}`}</p>
-                      <p className="text-xs">{plan.ageRequirement}</p>
+                      <p>Interest: {plan.interest_rate}%</p>
+                      <p>Min Balance: {plan.min_balance === 0 ? 'None' : `LKR ${plan.min_balance.toLocaleString()}`}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -762,15 +848,15 @@ export function AgentDashboard() {
 
           <div>
             <Label>Initial Deposit *</Label>
-            <Input 
-              type="number" 
-              placeholder="Enter initial deposit amount" 
-              value={newAccount.initialDeposit}
-              onChange={(e) => setNewAccount({...newAccount, initialDeposit: e.target.value})}
+            <Input
+              type="number"
+              placeholder="Enter initial deposit amount"
+              value={newAccount.initial_balance}
+              onChange={(e) => setNewAccount({ ...newAccount, initial_balance: e.target.value })}
             />
-            {newAccount.accountType && (
+            {newAccount.s_plan_id && (
               <p className="text-sm text-gray-500 mt-1">
-                Minimum deposit: LKR {savingsPlans.find(p => p.id === newAccount.accountType)?.minBalance.toLocaleString() || '0'}
+                Minimum deposit: LKR {savingsPlans.find(p => p.s_plan_id === newAccount.s_plan_id)?.min_balance.toLocaleString() || '0'}
               </p>
             )}
           </div>
@@ -815,19 +901,19 @@ export function AgentDashboard() {
           <div className="space-y-4">
             <div>
               <Label>First Account Holder - Customer ID *</Label>
-              <Input 
-                placeholder="Enter first customer ID (e.g., CUST001)" 
-                value={jointAccount.customerId1}
-                onChange={(e) => setJointAccount({...jointAccount, customerId1: e.target.value.toUpperCase()})}
+              <Input
+                placeholder="Enter first customer ID (e.g., CUST001)"
+                value={jointAccount.primary_customer_id}
+                onChange={(e) => setJointAccount({ ...jointAccount, primary_customer_id: e.target.value.toUpperCase() })}
               />
             </div>
 
             <div>
               <Label>Second Account Holder - Customer ID *</Label>
-              <Input 
-                placeholder="Enter second customer ID (e.g., CUST002)" 
-                value={jointAccount.customerId2}
-                onChange={(e) => setJointAccount({...jointAccount, customerId2: e.target.value.toUpperCase()})}
+              <Input
+                placeholder="Enter second customer ID (e.g., CUST002)"
+                value={jointAccount.secondary_customer_id}
+                onChange={(e) => setJointAccount({ ...jointAccount, secondary_customer_id: e.target.value.toUpperCase() })}
               />
             </div>
           </div>
@@ -843,11 +929,11 @@ export function AgentDashboard() {
 
           <div>
             <Label>Initial Deposit *</Label>
-            <Input 
-              type="number" 
-              placeholder="Enter initial deposit amount (min LKR 5,000)" 
-              value={jointAccount.initialDeposit}
-              onChange={(e) => setJointAccount({...jointAccount, initialDeposit: e.target.value})}
+            <Input
+              type="number"
+              placeholder="Enter initial deposit amount (min LKR 5,000)"
+              value={jointAccount.initial_balance}
+              onChange={(e) => setJointAccount({ ...jointAccount, initial_balance: e.target.value })}
             />
           </div>
 
@@ -870,14 +956,11 @@ export function AgentDashboard() {
           </Button>
 
           <div className="p-4 bg-blue-50 rounded-lg text-sm">
-            <p className="text-blue-900 font-medium mb-1">Available Customers:</p>
-            <div className="text-blue-800 space-y-1">
-              {mockCustomers.map((customer) => (
-                <p key={customer.customerId}>
-                  {customer.customerId} - {customer.name}
-                </p>
-              ))}
-            </div>
+            <p className="text-blue-900 font-medium mb-1">Note:</p>
+            <p className="text-blue-800">
+              Both customers must already be registered in the system.
+              Use the exact Customer IDs as shown in their customer records.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -888,8 +971,8 @@ export function AgentDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">{selectedCustomer.name}</h2>
-          <p className="text-gray-600">Customer ID: {selectedCustomer.customerId}</p>
+          <h2 className="text-2xl font-semibold">{selectedCustomer?.name}</h2>
+          <p className="text-gray-600">Customer ID: {selectedCustomer?.customer_id}</p>
         </div>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => changeView('search')}>
@@ -914,43 +997,125 @@ export function AgentDashboard() {
         </Alert>
       )}
 
+      {/* Customer Edit Modal/Panel */}
+      {editingCustomer && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Edit Customer Details</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Customer Name *</Label>
+                <Input
+                  value={editingCustomer.name}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={editingCustomer.phone_number || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, phone_number: e.target.value })}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={editingCustomer.email || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Address</Label>
+                <Input
+                  value={editingCustomer.address || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, address: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={editingCustomer.status ? 'active' : 'inactive'}
+                  onValueChange={(value) => setEditingCustomer({ ...editingCustomer, status: value === 'active' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={handleCancelEdit}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateCustomer} disabled={loading}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
-              Customer Information
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center">
+                <User className="h-5 w-5 mr-2" />
+                Customer Information
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditCustomer(selectedCustomer!)}
+                disabled={editingCustomer !== null}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
               <Label className="text-xs text-gray-500">Name</Label>
-              <p className="font-medium">{selectedCustomer.name}</p>
+              <p className="font-medium">{selectedCustomer?.name}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">NIC</Label>
-              <p className="font-medium">{selectedCustomer.nic}</p>
+              <p className="font-medium">{selectedCustomer?.nic}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">Phone</Label>
-              <p className="font-medium">{selectedCustomer.phoneNumber}</p>
+              <p className="font-medium">{selectedCustomer?.phone_number}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">Email</Label>
-              <p className="font-medium">{selectedCustomer.email}</p>
+              <p className="font-medium">{selectedCustomer?.email || 'N/A'}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">Date of Birth</Label>
-              <p className="font-medium">{selectedCustomer.dateOfBirth}</p>
+              <p className="font-medium">{selectedCustomer?.date_of_birth}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">Address</Label>
-              <p className="font-medium">{selectedCustomer.address}</p>
+              <p className="font-medium">{selectedCustomer?.address}</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500">Status</Label>
-              <Badge variant={selectedCustomer.status === 'Active' ? 'default' : 'secondary'}>
-                {selectedCustomer.status}
+              <Badge variant={selectedCustomer?.status ? 'default' : 'secondary'}>
+                {selectedCustomer?.status ? 'Active' : 'Inactive'}
               </Badge>
             </div>
           </CardContent>
@@ -960,54 +1125,40 @@ export function AgentDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <CreditCard className="h-5 w-5 mr-2" />
-              Savings Accounts ({selectedCustomer.savingsAccounts.length})
+              Savings Accounts ({selectedCustomerAccounts.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedCustomer.savingsAccounts.length === 0 ? (
+            {selectedCustomerAccounts.length === 0 ? (
               <p className="text-sm text-gray-500">No savings accounts yet</p>
             ) : (
-              selectedCustomer.savingsAccounts.map((account: any) => (
-                <div key={account.savingAccountId} className="p-3 border rounded-lg space-y-2">
+              selectedCustomerAccounts.map((account: any) => (
+                <div key={account.saving_account_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
                       <Label className="text-xs text-gray-500">Account ID</Label>
-                      <p className="font-medium text-sm">{account.savingAccountId}</p>
+                      <p className="font-medium text-sm">{account.saving_account_id}</p>
                     </div>
-                    <Badge variant="secondary">{account.planName}</Badge>
+                    <Badge variant={account.status ? 'default' : 'secondary'}>
+                      {account.status ? 'Active' : 'Inactive'}
+                    </Badge>
                   </div>
                   <div>
                     <Label className="text-xs text-gray-500">Balance</Label>
                     <p className="text-xl font-semibold text-green-600">
-                      LKR {account.balance.toLocaleString()}
+                      LKR {account.balance?.toLocaleString() || '0'}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <Label className="text-xs text-gray-500">Interest</Label>
-                      <p className="font-medium">{account.interestRate}%</p>
+                      <Label className="text-xs text-gray-500">Plan ID</Label>
+                      <p className="font-medium">{account.s_plan_id}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-gray-500">Min Balance</Label>
-                      <p className="font-medium">LKR {account.minBalance.toLocaleString()}</p>
+                      <Label className="text-xs text-gray-500">Date Opened</Label>
+                      <p className="font-medium">{account.open_date || 'N/A'}</p>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Opened: {account.openDate}
-                  </div>
-                  {account.holders && account.holders.length > 1 && (
-                    <div className="mt-2 p-2 bg-purple-50 rounded">
-                      <p className="text-xs text-purple-800">
-                        <Users className="h-3 w-3 inline mr-1" />
-                        Joint Account ({account.holders.length} holders)
-                      </p>
-                    </div>
-                  )}
-                  {selectedCustomer.fixedDeposits.some((fd: any) => fd.savingAccountId === account.savingAccountId && fd.status) && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded">
-                      <p className="text-xs text-blue-800">✓ Has Active FD</p>
-                    </div>
-                  )}
                 </div>
               ))
             )}
@@ -1019,18 +1170,18 @@ export function AgentDashboard() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedCustomer.savingsAccounts.length > 0 ? (
+            {selectedCustomerAccounts.length > 0 ? (
               <>
                 <div className="space-y-3">
                   <Label>Process Transaction</Label>
-                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                  <Select value={selectedAccountId} onValueChange={handleAccountChange}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select Account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedCustomer.savingsAccounts.map((acc: any) => (
-                        <SelectItem key={acc.savingAccountId} value={acc.savingAccountId}>
-                          {acc.savingAccountId} - {acc.planName} (LKR {acc.balance.toLocaleString()})
+                      {selectedCustomerAccounts.map((acc: any) => (
+                        <SelectItem key={acc.saving_account_id} value={acc.saving_account_id}>
+                          {acc.saving_account_id} - {acc.account_type || 'Savings'} (LKR {acc.balance?.toLocaleString() || '0'})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1065,20 +1216,15 @@ export function AgentDashboard() {
                       <SelectValue placeholder="Select Account for FD" />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedCustomer.savingsAccounts.map((acc: any) => {
-                        const hasActiveFD = selectedCustomer.fixedDeposits.some((fd: any) => 
-                          fd.savingAccountId === acc.savingAccountId && fd.status
-                        );
-                        return (
-                          <SelectItem 
-                            key={acc.savingAccountId} 
-                            value={acc.savingAccountId}
-                            disabled={hasActiveFD}
-                          >
-                            {acc.savingAccountId} {hasActiveFD ? '(Has Active FD)' : `(LKR ${acc.balance.toLocaleString()})`}
-                          </SelectItem>
-                        );
-                      })}
+                      {selectedCustomerAccounts.map((acc: any) => (
+                        <SelectItem
+                          key={acc.saving_account_id}
+                          value={acc.saving_account_id}
+                          disabled={!acc.status}
+                        >
+                          {acc.saving_account_id} - Savings (LKR {Number(acc.balance || 0).toLocaleString()})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <div className="space-y-2">
@@ -1088,8 +1234,8 @@ export function AgentDashboard() {
                       </SelectTrigger>
                       <SelectContent>
                         {fdPlans.map((plan) => (
-                          <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name} - {plan.rate}%
+                          <SelectItem key={plan.f_plan_id} value={plan.f_plan_id.toString()}>
+                            {plan.months} months - {plan.interest_rate}%
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1101,9 +1247,9 @@ export function AgentDashboard() {
                       onChange={(e) => setFdAmount(e.target.value)}
                     />
                   </div>
-                  <Button 
-                    onClick={handleFdCreation} 
-                    className="w-full" 
+                  <Button
+                    onClick={handleFdCreation}
+                    className="w-full"
                     size="sm"
                   >
                     <Plus className="h-4 w-4 mr-2" />
@@ -1124,22 +1270,22 @@ export function AgentDashboard() {
         </Card>
       </div>
 
-      {selectedCustomer.fixedDeposits.length > 0 && (
+      {selectedCustomerFixedDeposits.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Building2 className="h-5 w-5 mr-2" />
-              Fixed Deposits ({selectedCustomer.fixedDeposits.length})
+              Fixed Deposits ({selectedCustomerFixedDeposits.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {selectedCustomer.fixedDeposits.map((fd: any) => (
-                <div key={fd.fixedDepositId} className="p-4 border rounded-lg">
+              {selectedCustomerFixedDeposits.map((fd: any) => (
+                <div key={fd.fixed_deposit_id} className="p-4 border rounded-lg">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h4 className="font-medium">FD #{fd.fixedDepositId}</h4>
-                      <p className="text-xs text-gray-500">Account: {fd.savingAccountId}</p>
+                      <h4 className="font-medium">FD #{fd.fixed_deposit_id}</h4>
+                      <p className="text-xs text-gray-500">Account: {fd.saving_account_id}</p>
                     </div>
                     <Badge variant={fd.status ? 'default' : 'secondary'}>
                       {fd.status ? 'Active' : 'Matured'}
@@ -1148,28 +1294,24 @@ export function AgentDashboard() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Principal:</span>
-                      <span className="font-medium">LKR {fd.principalAmount.toLocaleString()}</span>
+                      <span className="font-medium">LKR {(fd.principal_amount || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Plan:</span>
-                      <span className="font-medium">{fd.planName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Interest Rate:</span>
-                      <span className="font-medium">{fd.interestRate}%</span>
+                      <span className="font-medium">{fd.f_plan_id}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Start Date:</span>
-                      <span className="font-medium">{fd.startDate}</span>
+                      <span className="font-medium">{fd.start_date ? new Date(fd.start_date).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Maturity Date:</span>
-                      <span className="font-medium">{fd.endDate}</span>
+                      <span className="font-medium">{fd.end_date ? new Date(fd.end_date).toLocaleDateString() : 'N/A'}</span>
                     </div>
-                    {fd.lastPayoutDate && (
+                    {fd.last_payout_date && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Last Payout:</span>
-                        <span className="font-medium">{fd.lastPayoutDate}</span>
+                        <span className="font-medium">{new Date(fd.last_payout_date).toLocaleDateString()}</span>
                       </div>
                     )}
                   </div>
@@ -1180,7 +1322,7 @@ export function AgentDashboard() {
         </Card>
       )}
 
-      {selectedCustomer.transactions.length > 0 && (
+      {selectedCustomerAccounts.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -1190,22 +1332,39 @@ export function AgentDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {selectedCustomer.transactions.map((txn: any) => (
-                <div key={txn.transactionId} className="flex justify-between items-center p-3 border rounded">
-                  <div>
-                    <p className="font-medium">{txn.type}</p>
-                    <p className="text-sm text-gray-500">{txn.timestamp}</p>
-                    <p className="text-xs text-gray-400">{txn.description}</p>
-                    <p className="text-xs text-gray-400">Account: {txn.savingAccountId}</p>
+              {selectedCustomerTransactions.length > 0 ? (
+                selectedCustomerTransactions.map((txn: any) => (
+                  <div key={txn.transaction_id} className="flex justify-between items-center p-3 border rounded">
+                    <div>
+                      <p className="font-medium">{txn.type}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(txn.timestamp).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        })}
+                      </p>
+                      <p className="text-xs text-gray-400">{txn.description || 'No description'}</p>
+                      <p className="text-xs text-gray-400">Account: {txn.saving_account_id || 'N/A'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-medium ${txn.type === 'Deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                        {txn.type === 'Deposit' ? '+' : '-'}LKR {Number(txn.amount).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500">Ref: {txn.ref_number || 'N/A'}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-medium ${txn.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {txn.amount > 0 ? '+' : ''}LKR {Math.abs(txn.amount).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500">{txn.refNumber}</p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Clock className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                  <p className="text-lg font-medium">No transactions yet</p>
+                  <p className="text-sm">Transactions will appear here once you process deposits or withdrawals</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1222,7 +1381,7 @@ export function AgentDashboard() {
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl text-gray-900">Agent Dashboard</h1>
-                <p className="text-sm text-gray-500">{mockBranchInfo.name}</p>
+                <p className="text-sm text-gray-500">Main Branch</p>
               </div>
             </div>
             <Button onClick={logout} variant="outline" size="sm">
