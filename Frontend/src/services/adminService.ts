@@ -1,19 +1,6 @@
 // Admin Service for AdminDashboard backend integration
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-// Helper function to build API URLs
-function buildApiUrl(path: string): string {
-    return `${API_BASE_URL}${path}`;
-}
-
-// Helper function to get auth headers
-function getAuthHeaders(token: string) {
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-    };
-}
+import { buildApiUrl, getAuthHeaders } from '../config/api';
 
 // Helper function to handle API errors
 export function handleApiError(error: any): string {
@@ -402,10 +389,7 @@ export class FDPlansService {
     static async getAllFDPlans(token: string): Promise<FixedDepositPlan[]> {
         const response = await fetch(buildApiUrl('/fixed-deposits/fixed-deposit-plan'), {
             method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(token),
         });
 
         if (!response.ok) {
@@ -419,10 +403,7 @@ export class FDPlansService {
     static async createFDPlan(planData: FixedDepositPlan, token: string): Promise<{ message: string }> {
         const response = await fetch(buildApiUrl('/fixed-deposits/fixed-deposit-plan'), {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(token),
             body: JSON.stringify(planData),
         });
 

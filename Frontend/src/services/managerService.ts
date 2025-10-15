@@ -1,19 +1,6 @@
 // Manager Service for ManagerDashboard backend integration
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-// Helper function to build API URLs
-function buildApiUrl(path: string): string {
-    return `${API_BASE_URL}${path}`;
-}
-
-// Helper function to get auth headers
-function getAuthHeaders(token: string) {
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-    };
-}
+import { buildApiUrl, getAuthHeaders } from '../config/api';
 
 // Helper function to handle API errors
 export function handleApiError(error: any): string {

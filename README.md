@@ -308,6 +308,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 #### `Frontend/src/config/api.ts` (for Docker)
 ```typescript
 export const API_BASE_URL = 'http://localhost:8000';
+export const buildApiUrl = (endpoint: string): string => {
+    return `${API_BASE_URL}${endpoint}`;
+};
+export const getAuthHeaders = (token?: string) => ({
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+});
 ```
 
 ### 🐛 Docker Troubleshooting
@@ -405,10 +412,19 @@ ALGORITHM=HS256
 ```
 
 ### API Configuration (Frontend)
-Update `src/config/api.ts` if needed:
+The frontend uses centralized API configuration in `src/config/api.ts`:
 ```typescript
 export const API_BASE_URL = 'http://localhost:8000';
+export const buildApiUrl = (endpoint: string): string => {
+    return `${API_BASE_URL}${endpoint}`;
+};
+export const getAuthHeaders = (token?: string) => ({
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+});
 ```
+
+All service files import these utilities for consistent API communication.
 
 ## 🧪 Testing the Integration
 
