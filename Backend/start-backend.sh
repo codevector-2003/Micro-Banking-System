@@ -2,16 +2,16 @@
 
 # Startup script for the Micro Banking System
 
-echo "🏦 Starting Micro Banking System..."
+echo " Starting Micro Banking System..."
 echo ""
 
 # Check if backend dependencies are installed
-echo "📋 Checking backend dependencies..."
+echo " Checking backend dependencies..."
 cd Backend
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
-    echo "❌ Virtual environment not found. Creating one..."
+    echo " Virtual environment not found. Creating one..."
     python -m venv venv
 fi
 
@@ -26,11 +26,11 @@ else
 fi
 
 # Install dependencies
-echo "📦 Installing backend dependencies..."
+echo " Installing backend dependencies..."
 pip install -r requirement.txt
 
 echo ""
-echo "🚀 Starting backend server..."
+echo " Starting backend server..."
 echo "   API will be available at: http://localhost:8000"
 echo "   API docs will be available at: http://localhost:8000/docs"
 echo ""
