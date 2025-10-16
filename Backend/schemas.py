@@ -77,7 +77,7 @@ class AuthenticationCreate(BaseModel):
     username: str = Field(max_length=30)
     password: str = Field(max_length=255)  # Hash before DB insert
     type: Etype
-    employee_id: str = Field(max_length=10)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class AuthenticationRead(AuthenticationCreate):
@@ -104,8 +104,8 @@ class CustomerCreate(BaseModel):
     address: str = Field(max_length=255)
     date_of_birth: date
     email: str | None = Field(default=None, max_length=255)
-    status: bool
-    employee_id: str = Field(max_length=10)
+    status: Optional[bool] = Field(default=True)
+    employee_id: Optional[str] = Field(default=None, max_length=10)
 
 
 class CustomerRead(CustomerCreate):
@@ -129,24 +129,32 @@ class SavingsAccountPlansRead(SavingsAccountPlansCreate):
 class SavingsAccountCreate(BaseModel):
     open_date: datetime
     balance: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
-    employee_id: str = Field(max_length=10)
     s_plan_id: str = Field(max_length=5)
     status: bool
-    branch_id: str = Field(max_length=7)
 
 
 class SavingsAccountRead(SavingsAccountCreate):
     saving_account_id: str = Field(max_length=10)
 
+
+class AccountStatusRequest(BaseModel):
+    saving_account_id: str
+    status: bool
+
+
+class AccountSearchRequest(BaseModel):
+    saving_account_id: str
+
 # FixedDeposit_Plans Models
 
 
-class FixedDepositPlansCreate(BaseModel):
-    months: str = Field(max_length=15)
-    interest_rate: str = Field(max_length=5)  # Store as string per schema
+class FixedDepositPlanCreate(BaseModel):
+    f_plan_id: str
+    months: int
+    interest_rate: Decimal
 
 
-class FixedDepositPlansRead(FixedDepositPlansCreate):
+class FixedDepositPlanRead(FixedDepositPlanCreate):
     f_plan_id: str = Field(max_length=5)
 
 # FixedDeposit Models
@@ -185,9 +193,70 @@ class TransactionsCreate(BaseModel):
     type: Trantype
     amount: Decimal = Field(gt=Decimal("0"), decimal_places=2)
     timestamp: datetime | None = None  # Default to now in DB
-    ref_number: int
+    ref_number: int | None = None  # <-- Make optional
     description: str | None = Field(default=None, max_length=255)
 
 
 class TransactionsRead(TransactionsCreate):
     transaction_id: int
+
+
+class TransactionsSearchResult(TransactionsRead):
+    """Extended transaction model for search results that includes saving_account_id"""
+    saving_account_id: str = Field(max_length=10)
+
+# Security: Secure request models for customer operations
+
+
+class CustomerSearchRequest(BaseModel):
+    """Secure search request model for customer search operations"""
+    customer_id: Optional[str] = Field(default=None, max_length=10)
+    nic: Optional[str] = Field(default=None, max_length=12)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+
+
+class CustomerUpdateRequest(BaseModel):
+    """Secure update request model for customer update operations"""
+    customer_id: str = Field(max_length=10)
+    name: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=10)
+    address: Optional[str] = Field(default=None, max_length=255)
+    email: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[bool] = Field(default=None)
+
+
+class CustomerStatusRequest(BaseModel):
+    """Secure status update request model for customer status operations"""
+    customer_id: str = Field(max_length=10)
+    status: bool
+
+
+class SavingsAccountWithCustomerRead(BaseModel):
+    saving_account_id: str = Field(max_length=10)
+    open_date: datetime
+    balance: Decimal = Field(decimal_places=2)
+    employee_id: str = Field(max_length=10)
+    s_plan_id: str = Field(max_length=5)
+    status: bool
+    branch_id: Optional[str] = Field(
+        default=None, max_length=7)  # <-- Make optional
+    customer_id: str = Field(max_length=10)
+    customer_name: str = Field(max_length=50)
+    customer_nic: str = Field(max_length=12)
+
+# Joint Account Models
+
+
+class JointAccountCreate(BaseModel):
+    primary_customer_id: str = Field(max_length=10)
+    secondary_customer_id: str = Field(max_length=10)
+    initial_balance: Decimal = Field(gt=Decimal("0"), decimal_places=2)
+    s_plan_id: str = Field(max_length=5)
+
+
+class JointAccountRead(BaseModel):
+    saving_account_id: str = Field(max_length=10)
+    holder_ids: list[str]
+    customer_names: list[str]
+    customer_nics: list[str]

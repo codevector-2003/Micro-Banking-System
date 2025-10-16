@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./Backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: B_trust
+      DB_USER: postgres
+      DB_PASSWORD: 1234
+      DB_SSLMODE: disable
+    depends_on:
+      - db
+
+  frontend:
+    build: ./Frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: B_trust
+    volumes:
+      - ./init-scripts:/docker-entrypoint-initdb.d/
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:
