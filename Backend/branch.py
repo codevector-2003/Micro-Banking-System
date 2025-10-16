@@ -275,10 +275,32 @@ def change_branch_status(status_request: dict, conn=Depends(get_db), current_use
 @router.get("/branch/{branch_id}", response_model=BranchRead)
 def get_branch_by_id(branch_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)) -> BranchRead:
     """
-    Get branch details by ID - Admin and branch managers can access.
+    Get branch details by ID - Admin, branch managers, and agents can access their own branch.
     """
-    # Admin and branch managers can view branch details
-    if current_user.get('type').lower() not in ['admin', 'branch_manager']:
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+
+    # Admin can view any branch
+    if user_type == 'admin':
+        pass  # Allow access
+    # Branch managers and agents can only view their own branch
+    elif user_type in ['branch_manager', 'agent']:
+        # Check if user has employee_id and verify they belong to this branch
+        employee_id = current_user.get('employee_id')
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        # Verify the user belongs to the requested branch
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT branch_id FROM employee WHERE employee_id = %s
+            """, (employee_id,))
+            user_branch = cursor.fetchone()
+
+            if not user_branch or str(user_branch['branch_id']) != str(branch_id):
+                raise HTTPException(
+                    status_code=403, detail="You can only view information for your own branch")
+    else:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:

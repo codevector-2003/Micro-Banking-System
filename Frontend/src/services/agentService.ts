@@ -341,6 +341,119 @@ export class JointAccountService {
     }
 }
 
+// Employee and Branch info for Agent Dashboard
+export interface EmployeeInfo {
+    employee_id: string;
+    name: string;
+    nic: string;
+    phone_number: string;
+    address: string;
+    date_started: string;
+    last_login_time?: string;
+    type: string;
+    status: boolean;
+    branch_id: string;
+}
+
+export interface BranchInfo {
+    branch_id: string;
+    branch_name: string;
+    location: string;
+    branch_phone_number: string;
+    status: boolean;
+}
+
+export interface ManagerInfo {
+    name: string;
+    employee_id: string | null;
+}
+
+export interface MyEmployeeInfo {
+    employee: EmployeeInfo;
+    branch: BranchInfo;
+    manager: ManagerInfo | null;
+}
+
+// Employee Service for Agent Dashboard
+export class EmployeeService {
+    static async getMyInfo(token: string): Promise<MyEmployeeInfo> {
+        const response = await fetch(buildApiUrl('/employees/employee/my-info'), {
+            method: 'GET',
+            headers: getAuthHeaders(token),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch employee information');
+        }
+
+        return response.json();
+    }
+
+    static async getEmployeeInfo(employeeId: string, token: string): Promise<EmployeeInfo> {
+        const response = await fetch(buildApiUrl('/employees/employee/search'), {
+            method: 'POST',
+            headers: getAuthHeaders(token),
+            body: JSON.stringify({ employee_id: employeeId }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch employee information');
+        }
+
+        const employees = await response.json();
+        if (employees.length === 0) {
+            throw new Error('Employee not found');
+        }
+
+        return employees[0];
+    }
+}
+
+// Branch Service for Agent Dashboard
+export class BranchService {
+    static async getBranchInfo(branchId: string, token: string): Promise<BranchInfo> {
+        const response = await fetch(buildApiUrl(`/branches/branch/${branchId}`), {
+            method: 'GET',
+            headers: getAuthHeaders(token),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch branch information');
+        }
+
+        return response.json();
+    }
+
+    static async getBranchManager(branchId: string, token: string): Promise<EmployeeInfo | null> {
+        // First get all employees in the branch
+        const response = await fetch(buildApiUrl('/employees/employee/search'), {
+            method: 'POST',
+            headers: getAuthHeaders(token),
+            body: JSON.stringify({
+                branch_id: branchId
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch branch employees');
+        }
+
+        const employees = await response.json();
+        // Filter for managers (or branch managers) on the frontend
+        const managers = employees.filter((emp: EmployeeInfo) =>
+            emp.type.toLowerCase().includes('manager') ||
+            emp.type.toLowerCase() === 'branch manager' ||
+            emp.type.toLowerCase() === 'manager'
+        );
+
+        return managers.length > 0 ? managers[0] : null;
+    }
+}
+
 // Utility function to handle API errors
 export const handleApiError = (error: unknown): string => {
     if (error instanceof Error) {

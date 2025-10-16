@@ -57,8 +57,13 @@ def create_employee(employee: EmployeeCreate, conn=Depends(get_db), current_user
 def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[EmployeeRead]:
     """
     Search employees by various criteria.
+    Admin: Can search all employees
+    Branch Manager: Can search employees in their branch
+    Agent: Can search employees in their own branch (limited to basic info)
     """
-    if current_user.get('type').lower() not in ['branch_manager', 'admin']:
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+
+    if user_type not in ['branch_manager', 'admin', 'agent']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
@@ -70,6 +75,25 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
                 WHERE 1=1
             """
             values = []
+
+            # For agents, restrict to their own branch only
+            if user_type == 'agent':
+                employee_id = current_user.get('employee_id')
+                if not employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="User is not associated with an employee record")
+
+                # Get the agent's branch_id
+                cursor.execute(
+                    "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+                agent_branch = cursor.fetchone()
+                if not agent_branch:
+                    raise HTTPException(
+                        status_code=400, detail="Agent's branch not found")
+
+                # Restrict search to the agent's branch
+                query += " AND branch_id = %s"
+                values.append(agent_branch['branch_id'])
 
             # Add search conditions
             if search_request.get('employee_id'):
@@ -85,6 +109,20 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
                 values.append(search_request['nic'])
 
             if search_request.get('branch_id'):
+                # For non-admin users, ensure they can only search their own branch
+                if user_type != 'admin':
+                    # For agents, this is already restricted above
+                    # For branch managers, verify it's their branch
+                    if user_type == 'branch_manager':
+                        employee_id = current_user.get('employee_id')
+                        if employee_id:
+                            cursor.execute(
+                                "SELECT branch_id FROM employee WHERE employee_id = %s", (employee_id,))
+                            manager_branch = cursor.fetchone()
+                            if manager_branch and manager_branch['branch_id'] != search_request['branch_id']:
+                                raise HTTPException(
+                                    status_code=403, detail="You can only search employees in your own branch")
+
                 query += " AND branch_id = %s"
                 values.append(search_request['branch_id'])
 
@@ -95,6 +133,8 @@ def get_employees(search_request: dict, conn=Depends(get_db), current_user=Depen
 
             return [EmployeeRead(**row) for row in rows]
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
@@ -241,6 +281,87 @@ def update_employee_contact(update_request: dict, conn=Depends(get_db), current_
         raise
     except Exception as e:
         conn.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/employee/my-info")
+def get_my_employee_info(conn=Depends(get_db), current_user=Depends(get_current_user)) -> dict:
+    """
+    Get current user's employee information including branch and manager details.
+    Available for all employee types (Agent, Branch Manager).
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+
+    if user_type not in ['agent', 'branch_manager']:
+        raise HTTPException(
+            status_code=403, detail="Only employees can access this endpoint")
+
+    try:
+        employee_id = current_user.get('employee_id')
+        if not employee_id:
+            raise HTTPException(
+                status_code=403, detail="User is not associated with an employee record")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get employee information with branch details
+            cursor.execute("""
+                SELECT 
+                    e.employee_id, e.name, e.nic, e.phone_number, e.address, 
+                    e.date_started, e.last_login_time, e.type, e.status, e.branch_id,
+                    b.branch_name, b.location, b.branch_phone_number, b.status as branch_status
+                FROM employee e
+                JOIN branch b ON e.branch_id = b.branch_id
+                WHERE e.employee_id = %s
+            """, (employee_id,))
+
+            employee_info = cursor.fetchone()
+            if not employee_info:
+                raise HTTPException(
+                    status_code=404, detail="Employee information not found")
+
+            # Get branch manager information
+            cursor.execute("""
+                SELECT name, employee_id
+                FROM employee 
+                WHERE branch_id = %s AND type = 'Branch Manager' AND status = true
+                LIMIT 1
+            """, (employee_info['branch_id'],))
+
+            manager_info = cursor.fetchone()
+
+            # Format the response
+            result = {
+                "employee": {
+                    "employee_id": employee_info['employee_id'],
+                    "name": employee_info['name'],
+                    "nic": employee_info['nic'],
+                    "phone_number": employee_info['phone_number'],
+                    "address": employee_info['address'],
+                    "date_started": employee_info['date_started'],
+                    "last_login_time": employee_info['last_login_time'],
+                    "type": employee_info['type'],
+                    "status": employee_info['status'],
+                    "branch_id": employee_info['branch_id']
+                },
+                "branch": {
+                    "branch_id": employee_info['branch_id'],
+                    "branch_name": employee_info['branch_name'],
+                    "location": employee_info['location'],
+                    "branch_phone_number": employee_info['branch_phone_number'],
+                    "status": employee_info['branch_status']
+                },
+                "manager": {
+                    "name": manager_info['name'] if manager_info else "No Manager Assigned",
+                    "employee_id": manager_info['employee_id'] if manager_info else None
+                } if manager_info else None
+            }
+
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
 
