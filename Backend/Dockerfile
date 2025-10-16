@@ -1,17 +1,25 @@
-# ---- Build Stage ----
-FROM python:3.11-slim AS builder
-
-WORKDIR /app
-COPY requirement.txt .
-RUN pip install --no-cache-dir -r requirement.txt
-
-COPY . .
-
-# ---- Runtime Stage ----
+# Use single stage to avoid package copying issues
 FROM python:3.11-slim
 
 WORKDIR /app
-COPY --from=builder /app /app
+
+# Install system dependencies that might be needed
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirement.txt .
+
+# Install packages with retry and increased timeout to handle network issues
+# Install most problematic packages first with extended timeouts
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --timeout=600 --retries=10 psycopg2-binary==2.9.10 && \
+    pip install --no-cache-dir --timeout=300 --retries=5 -r requirement.txt
+
+# Copy application code
+COPY . .
 
 # Create a non-root user for security
 RUN useradd -m appuser

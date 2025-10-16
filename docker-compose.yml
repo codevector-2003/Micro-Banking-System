@@ -5,6 +5,13 @@ services:
     build: ./Backend
     ports:
       - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: B_trust
+      DB_USER: postgres
+      DB_PASSWORD: 1234
+      DB_SSLMODE: disable
     depends_on:
       - db
 
@@ -17,6 +24,8 @@ services:
 
   db:
     image: postgres:15
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 1234

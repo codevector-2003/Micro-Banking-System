@@ -434,14 +434,14 @@ VALUES
 ('EMP104', 'Alice Manager', '198745678901', '0774567890', '321 Manager St, Kandy', '2020-04-01', 'Branch Manager', true, 'BT002'),
 ('EMP105', 'Charlie Agent', '199256789012', '0775678901', '654 Agent Ave, Kandy', '2020-05-01', 'Agent', true, 'BT002');
 
--- Insert Sample Authentication Records (passwords are hashed for 'password123')
+-- Insert Sample Authentication Records (admin password is 'admin123', others are 'password123')
 INSERT INTO Authentication (username, password, type, employee_id)
 VALUES
-('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4w3c2YgDlu', 'Admin', 'EMP101'),
-('manager1', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4w3c2YgDlu', 'Branch Manager', 'EMP102'),
-('agent1', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4w3c2YgDlu', 'Agent', 'EMP103'),
-('manager2', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4w3c2YgDlu', 'Branch Manager', 'EMP104'),
-('agent2', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4w3c2YgDlu', 'Agent', 'EMP105');
+('admin', '$2b$12$uOcY6MuMJ9PlfttVqa0.VOduxLUldCsxvrvBV8i8N3wKdXCaTbGv2', 'Admin', 'EMP101'),
+('manager1', '$2b$12$A4lBdnZXEa2UPSNYi4T0luz/WLCfKEdTLFM.G9v0e8frnnwY8wqX2', 'Branch Manager', 'EMP102'),
+('agent1', '$2b$12$utBX6P3cdB4RxoDcbJ.DVu6h6tpn31O7fsPOWykLAB6bmR.9R8/02', 'Agent', 'EMP103'),
+('manager2', '$2b$12$TgaXrbwzbKxL9gqxRoJfUu002EWohCdMPlUb5a2PapKDsdLKl.mVy', 'Branch Manager', 'EMP104'),
+('agent2', '$2b$12$/2KZ8a1Qy9E8qlFW/AKldOBfiJRk5QgZeUGODKSpDkhpkfmggDfpm', 'Agent', 'EMP105');
 
 -- Insert Sample Customers
 INSERT INTO Customer (customer_id, name, nic, phone_number, address, date_of_birth, email, status, employee_id)

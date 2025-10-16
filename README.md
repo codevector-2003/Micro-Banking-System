@@ -8,7 +8,7 @@ After running `docker-compose up --build`, login with these credentials:
 
 | **Role** | **Username** | **Password** | **Access Level** |
 |----------|--------------|--------------|------------------|
-| 🔴 **Admin** | `admin` | `password123` | Full system control |
+| 🔴 **Admin** | `admin` | `admin123` | Full system control |
 | 🟡 **Manager** | `manager1` | `password123` | Branch management |
 | 🟢 **Agent** | `agent1` | `password123` | Customer operations |
 
@@ -148,7 +148,7 @@ The database is automatically initialized with these test accounts:
 
 | Role | Username | Password | Description |
 |------|----------|----------|-------------|
-| **Admin** | `admin` | `password123` | Full system access, user management |
+| **Admin** | `admin` | `admin123` | Full system access, user management |
 | **Manager** | `manager1` | `password123` | Branch operations, customer management |
 | **Manager** | `manager2` | `password123` | Branch operations, customer management |
 | **Agent** | `agent1` | `password123` | Customer service, account operations |
@@ -156,7 +156,7 @@ The database is automatically initialized with these test accounts:
 
 **🚀 Quick Login Test:**
 1. Go to http://localhost:5173
-2. Use **Username**: `admin` and **Password**: `password123`
+2. Use **Username**: `admin` and **Password**: `admin123`
 3. Access the Admin Dashboard with full privileges
 
 ### 📁 Docker Configuration Files
@@ -238,7 +238,7 @@ Complete database initialization script that automatically creates:
 - **Sample Data**: Ready-to-use test accounts and users
 
 **🔑 Includes Pre-configured Login Accounts:**
-- **Admin**: `admin` / `password123` (Full system access)
+- **Admin**: `admin` / `admin123` (Full system access)
 - **Manager**: `manager1` / `password123` (Branch management)
 - **Manager**: `manager2` / `password123` (Branch management)
 - **Agent**: `agent1` / `password123` (Customer service)
@@ -431,7 +431,7 @@ All service files import these utilities for consistent API communication.
 1. **Start both servers** (Backend on :8000, Frontend on :5173)
 2. **Open the application** at http://localhost:5173
 3. **Test authentication** with default credentials:
-   - **Admin Login**: Username `admin`, Password `password123`
+   - **Admin Login**: Username `admin`, Password `admin123`
    - **Manager Login**: Username `manager1`, Password `password123`
    - **Agent Login**: Username `agent1`, Password `password123`
 4. **Navigate between different role dashboards**

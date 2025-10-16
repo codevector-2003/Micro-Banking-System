@@ -11,6 +11,16 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Hardcoded config that works
+# DATABASE_CONFIG = {
+#     "host": "localhost",
+#     "port": "5432",
+#     "database": "B_trust ",
+#     "user": "postgres",
+#     "password": "1234",
+# }
+
+# Environment-based config
 DATABASE_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": os.getenv("DB_PORT", "5432"),
