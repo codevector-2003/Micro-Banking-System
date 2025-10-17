@@ -6,10 +6,10 @@
 -- ============================================================================
 
 -- Drop existing database objects if they exist (for clean reinitialization)
-DROP MATERIALIZED VIEW IF EXISTS vw_customer_activity_mv CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS vw_monthly_interest_summary_mv CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS vw_agent_transactions_mv CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS joint_accounts_holders_mv CASCADE;
+DROP VIEW IF EXISTS vw_customer_activity_mv CASCADE;
+DROP VIEW IF EXISTS vw_monthly_interest_summary_mv CASCADE;
+DROP VIEW IF EXISTS vw_agent_transactions_mv CASCADE;
+DROP VIEW IF EXISTS joint_accounts_holders_mv CASCADE;
 DROP VIEW IF EXISTS holder_balance_min CASCADE;
 DROP VIEW IF EXISTS savings_account_with_customer CASCADE;
 DROP VIEW IF EXISTS vw_active_fds CASCADE;
