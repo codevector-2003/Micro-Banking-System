@@ -6,12 +6,44 @@ import { buildApiUrl, getAuthHeaders } from '../config/api';
 export function handleApiError(error: any): string {
     if (error instanceof Error) {
         try {
+            // Try to parse error message as JSON
             const errorObj = JSON.parse(error.message);
-            return errorObj.detail || errorObj.message || 'An error occurred';
+            if (typeof errorObj.detail === 'string') {
+                return errorObj.detail;
+            }
+            if (typeof errorObj.message === 'string') {
+                return errorObj.message;
+            }
+            // If detail or message is an object, stringify it properly
+            if (errorObj.detail) {
+                return JSON.stringify(errorObj.detail);
+            }
+            if (errorObj.message) {
+                return JSON.stringify(errorObj.message);
+            }
+            return JSON.stringify(errorObj);
         } catch {
+            // If parsing fails, return the original error message
             return error.message;
         }
     }
+
+    // Handle cases where error is already a string
+    if (typeof error === 'string') {
+        return error;
+    }
+
+    // Handle cases where error is an object
+    if (typeof error === 'object' && error !== null) {
+        if (error.detail) {
+            return typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+        }
+        if (error.message) {
+            return typeof error.message === 'string' ? error.message : JSON.stringify(error.message);
+        }
+        return JSON.stringify(error);
+    }
+
     return 'An unexpected error occurred';
 }
 
@@ -211,8 +243,15 @@ export class EmployeeService {
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to create employee');
+            try {
+                const error = await response.json();
+                console.error('Employee creation error:', error); // Debug log
+                throw new Error(JSON.stringify(error));
+            } catch (parseError) {
+                // If we can't parse the error response, throw a generic error with status
+                console.error('Failed to parse error response:', parseError);
+                throw new Error(`Failed to create employee (HTTP ${response.status}): ${response.statusText}`);
+            }
         }
 
         return response.json();

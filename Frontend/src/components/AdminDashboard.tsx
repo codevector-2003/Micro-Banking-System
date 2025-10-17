@@ -1262,7 +1262,7 @@ export function AdminDashboard() {
                           <p className="text-sm text-gray-600">NIC: {employee.nic}</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Badge variant={employee.type === 'Admin' ? 'default' : employee.type === 'Manager' ? 'secondary' : 'outline'}>
+                          <Badge variant={employee.type === 'Admin' ? 'default' : employee.type === 'Branch Manager' ? 'secondary' : 'outline'}>
                             {employee.type}
                           </Badge>
                           <Badge variant={employee.status ? 'default' : 'destructive'}>
@@ -1392,7 +1392,7 @@ export function AdminDashboard() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Admin">Admin</SelectItem>
-                              <SelectItem value="Manager">Manager</SelectItem>
+                              <SelectItem value="Branch Manager">Branch Manager</SelectItem>
                               <SelectItem value="Agent">Agent</SelectItem>
                             </SelectContent>
                           </Select>

@@ -14,12 +14,17 @@ import {
   TransactionService,
   FixedDepositService,
   JointAccountService,
+  EmployeeService,
+  BranchService,
   handleApiError,
   type Customer,
   type SavingsAccount,
   type Transaction,
   type FixedDeposit,
-  type FixedDepositPlan
+  type FixedDepositPlan,
+  type EmployeeInfo,
+  type BranchInfo,
+  type MyEmployeeInfo
 } from '../services/agentService';
 import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
 
@@ -51,6 +56,11 @@ export function AgentDashboard() {
   const [customerTransactions, setCustomerTransactions] = useState<Transaction[]>([]);
   const [customerFixedDeposits, setCustomerFixedDeposits] = useState<FixedDeposit[]>([]);
 
+  // Employee and Branch information state
+  const [employeeInfo, setEmployeeInfo] = useState<EmployeeInfo | null>(null);
+  const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
+  const [branchManager, setBranchManager] = useState<EmployeeInfo | null>(null);
+
   // Customer registration form state
   const [newCustomer, setNewCustomer] = useState({
     name: '',
@@ -78,6 +88,7 @@ export function AgentDashboard() {
   // Load initial data when component mounts
   useEffect(() => {
     loadInitialData();
+    loadEmployeeBranchInfo();
   }, []);
 
   const loadInitialData = async () => {
@@ -96,6 +107,31 @@ export function AgentDashboard() {
       setError('Failed to load initial data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEmployeeBranchInfo = async () => {
+    if (!user?.token) return;
+
+    try {
+      // Use the new dedicated endpoint to get all info at once
+      const myInfo = await EmployeeService.getMyInfo(user.token);
+      setEmployeeInfo(myInfo.employee);
+      setBranchInfo(myInfo.branch);
+      setBranchManager(myInfo.manager ? {
+        employee_id: myInfo.manager.employee_id || '',
+        name: myInfo.manager.name,
+        nic: '',
+        phone_number: '',
+        address: '',
+        date_started: '',
+        type: 'Branch Manager',
+        status: true,
+        branch_id: myInfo.employee.branch_id
+      } : null);
+    } catch (error) {
+      console.error('Failed to load employee/branch info:', error);
+      // Don't set error state here as this is non-critical information
     }
   };
 
@@ -544,9 +580,12 @@ export function AgentDashboard() {
             <div>
               <h2 className="text-2xl font-semibold mb-2">Welcome, {user?.username}!</h2>
               <div className="space-y-1 text-sm text-gray-600">
-                <p><strong>Branch:</strong> Main Branch</p>
-                <p><strong>Address:</strong> 123 Banking Street, Colombo</p>
-                <p><strong>Manager:</strong> Manager Name</p>
+                <p><strong>Branch:</strong> {branchInfo?.branch_name || 'Loading...'}</p>
+                <p><strong>Address:</strong> {branchInfo?.location || 'Loading...'}</p>
+                <p><strong>Manager:</strong> {branchManager?.name || 'Loading...'}</p>
+                {branchInfo && (
+                  <p><strong>Phone:</strong> {branchInfo.branch_phone_number}</p>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -1351,8 +1390,8 @@ export function AgentDashboard() {
                       <p className="text-xs text-gray-400">Account: {txn.saving_account_id || 'N/A'}</p>
                     </div>
                     <div className="text-right">
-                      <p className={`font-medium ${txn.type === 'Deposit' ? 'text-green-600' : 'text-red-600'}`}>
-                        {txn.type === 'Deposit' ? '+' : '-'}LKR {Number(txn.amount).toLocaleString()}
+                      <p className={`font-medium ${txn.type === 'Deposit' || txn.type === 'Interest' ? 'text-green-600' : 'text-red-600'}`}>
+                        {txn.type === 'Deposit' || txn.type === 'Interest' ? '+' : '-'}LKR {Number(txn.amount).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-500">Ref: {txn.ref_number || 'N/A'}</p>
                     </div>
@@ -1381,7 +1420,7 @@ export function AgentDashboard() {
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl text-gray-900">Agent Dashboard</h1>
-                <p className="text-sm text-gray-500">Main Branch</p>
+                <p className="text-sm text-gray-500">{branchInfo?.branch_name || 'Loading Branch...'}</p>
               </div>
             </div>
             <Button onClick={logout} variant="outline" size="sm">
