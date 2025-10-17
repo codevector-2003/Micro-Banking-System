@@ -271,8 +271,8 @@ const FixedDeposit: React.FC = () => {
         .amount-input input { flex: 1; border-radius: 4px 0 0 4px; border-right: none; }
         .calculated-interest { margin-top: 5px; color: #2c3e50; font-weight: bold; }
         .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
-        .primary-btn { background-color: #e74c3c; color: #fff; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; }
-        .secondary-btn { background-color: #ccc; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; }
+        .primary-btn { background-color: #e74c3c; color: #fff; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px;}
+        .secondary-btn { background-color: #ccc; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px;}
         .form-message { margin-top: 10px; font-weight: bold; }
         @media (max-width: 600px) { .form-row { flex-direction: column; } }
       `}</style>
