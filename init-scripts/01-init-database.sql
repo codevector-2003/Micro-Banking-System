@@ -6,10 +6,10 @@
 -- ============================================================================
 
 -- Drop existing database objects if they exist (for clean reinitialization)
-DROP MATERIALIZED VIEW IF EXISTS vw_customer_activity_mv CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS vw_monthly_interest_summary_mv CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS vw_agent_transactions_mv CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS joint_accounts_holders_mv CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS vw_monthly_interest_summary_mv CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS vw_customer_activity_mv CASCADE;
+DROP VIEW IF EXISTS joint_accounts_holders_mv CASCADE;
 DROP VIEW IF EXISTS holder_balance_min CASCADE;
 DROP VIEW IF EXISTS savings_account_with_customer CASCADE;
 DROP VIEW IF EXISTS vw_active_fds CASCADE;
@@ -529,70 +529,175 @@ JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
 JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id;
 
 -- ============================================================================
--- 9. CREATE MATERIALIZED VIEWS
+-- 9. ENHANCED MATERIALIZED VIEWS WITH ALL NECESSARY DATA
 -- ============================================================================
 
--- Joint Accounts and Holders Materialized View
-CREATE MATERIALIZED VIEW joint_accounts_holders_mv AS
-SELECT 
-    sa.saving_account_id,
-    sa.balance,
-    sa.status AS account_status,
-    string_agg(c.name, ', ') AS joint_customers
-FROM SavingsAccount sa
-JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
-JOIN Customer c ON ah.customer_id = c.customer_id
-GROUP BY sa.saving_account_id, sa.balance, sa.status
-HAVING COUNT(ah.customer_id) > 1
-WITH DATA;
+-- Drop existing materialized views to recreate with enhanced data
 
--- Agent Transaction Summary Materialized View
+-- Enhanced Agent Transaction Summary with Branch Info
 CREATE MATERIALIZED VIEW vw_agent_transactions_mv AS
 SELECT 
     e.employee_id,
     e.name AS agent_name,
-    COUNT(t.transaction_id) AS total_transactions,
-    SUM(t.amount) AS total_value
+    e.branch_id,
+    b.branch_name,
+    e.type as employee_type,
+    e.status as employee_status,
+    COUNT(DISTINCT t.transaction_id) AS total_transactions,
+    SUM(t.amount) AS total_value,
+    COUNT(DISTINCT c.customer_id) AS total_customers,
+    COUNT(DISTINCT sa.saving_account_id) AS total_accounts
 FROM Employee e
-JOIN Customer c ON e.employee_id = c.employee_id
-JOIN AccountHolder ah ON c.customer_id = ah.customer_id
-JOIN Transactions t ON ah.holder_id = t.holder_id
-GROUP BY e.employee_id, e.name
+LEFT JOIN Branch b ON e.branch_id = b.branch_id
+LEFT JOIN Customer c ON e.employee_id = c.employee_id
+LEFT JOIN AccountHolder ah ON c.customer_id = ah.customer_id
+LEFT JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
+LEFT JOIN Transactions t ON ah.holder_id = t.holder_id
+WHERE e.type = 'Agent'
+GROUP BY e.employee_id, e.name, e.branch_id, b.branch_name, e.type, e.status
 WITH DATA;
 
--- Monthly Interest Summary Materialized View
+-- Enhanced Monthly Interest Summary with Branch and Customer Info
 CREATE MATERIALIZED VIEW vw_monthly_interest_summary_mv AS
 SELECT 
     sp.plan_name,
     sa.saving_account_id,
+    sa.branch_id,
+    b.branch_name,
+    c.customer_id,
+    c.name AS customer_name,
+    c.employee_id AS agent_id,
     DATE_TRUNC('month', t.timestamp) AS month,
-    SUM(t.amount) AS monthly_interest
+    SUM(t.amount) AS monthly_interest,
+    COUNT(t.transaction_id) AS interest_payment_count
 FROM Transactions t
 JOIN AccountHolder ah ON t.holder_id = ah.holder_id
 JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
 JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id
+JOIN Customer c ON ah.customer_id = c.customer_id
+JOIN Branch b ON sa.branch_id = b.branch_id
 WHERE t.type = 'Interest'
-GROUP BY sp.plan_name, sa.saving_account_id, DATE_TRUNC('month', t.timestamp)
+GROUP BY sp.plan_name, sa.saving_account_id, sa.branch_id, b.branch_name, 
+         c.customer_id, c.name, c.employee_id, DATE_TRUNC('month', t.timestamp)
 WITH DATA;
 
--- Customer Activity Summary Materialized View
+-- Enhanced Customer Activity Summary with Complete Details
 CREATE MATERIALIZED VIEW vw_customer_activity_mv AS
 SELECT 
     c.customer_id,
     c.name AS customer_name,
+    c.nic AS customer_nic,
+    c.phone_number,
+    c.email,
+    c.date_of_birth,
+    c.status AS customer_status,
+    e.employee_id AS agent_id,
+    e.name AS agent_name,
+    e.branch_id,
+    b.branch_name,
+    COUNT(DISTINCT ah.saving_account_id) AS total_accounts,
+    SUM(sa.balance) AS current_total_balance,
     SUM(CASE WHEN t.type = 'Deposit' THEN t.amount ELSE 0 END) AS total_deposits,
     SUM(CASE WHEN t.type = 'Withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals,
     SUM(CASE WHEN t.type = 'Deposit' THEN t.amount
              WHEN t.type = 'Withdrawal' THEN -t.amount
-             ELSE 0 END) AS net_change
+             ELSE 0 END) AS net_change,
+    COUNT(DISTINCT CASE WHEN fd.status = TRUE THEN fd.fixed_deposit_id END) AS active_fds,
+    SUM(CASE WHEN fd.status = TRUE THEN fd.principal_amount ELSE 0 END) AS total_fd_amount
 FROM Customer c
-JOIN AccountHolder ah ON c.customer_id = ah.customer_id
-JOIN Transactions t ON ah.holder_id = t.holder_id
-GROUP BY c.customer_id, c.name
+JOIN Employee e ON c.employee_id = e.employee_id
+JOIN Branch b ON e.branch_id = b.branch_id
+LEFT JOIN AccountHolder ah ON c.customer_id = ah.customer_id
+LEFT JOIN SavingsAccount sa ON ah.saving_account_id = sa.saving_account_id
+LEFT JOIN Transactions t ON ah.holder_id = t.holder_id
+LEFT JOIN FixedDeposit fd ON sa.saving_account_id = fd.saving_account_id
+GROUP BY c.customer_id, c.name, c.nic, c.phone_number, c.email, c.date_of_birth, 
+         c.status, e.employee_id, e.name, e.branch_id, b.branch_name
 WITH DATA;
 
--- Create additional indexes for materialized views
-CREATE INDEX idx_customer_activity_mv_id ON vw_customer_activity_mv(customer_id);
+-- Enhanced Account Transaction Summary View
+CREATE OR REPLACE VIEW vw_account_summary AS
+SELECT 
+    sa.saving_account_id,
+    sa.balance AS current_balance,
+    sa.open_date,
+    sa.status AS account_status,
+    sa.branch_id,
+    b.branch_name,
+    sp.plan_name,
+    sp.interest_rate,
+    sp.min_balance,
+    c.customer_id,
+    c.name AS customer_name,
+    c.nic AS customer_nic,
+    e.employee_id AS agent_id,
+    e.name AS agent_name,
+    COUNT(DISTINCT t.transaction_id) AS total_transactions,
+    SUM(CASE WHEN t.type = 'Deposit' THEN t.amount ELSE 0 END) AS total_deposits,
+    SUM(CASE WHEN t.type = 'Withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals,
+    SUM(CASE WHEN t.type = 'Interest' THEN t.amount ELSE 0 END) AS total_interest,
+    MAX(t.timestamp) AS last_transaction_date
+FROM SavingsAccount sa
+JOIN SavingsAccount_Plans sp ON sa.s_plan_id = sp.s_plan_id
+JOIN Branch b ON sa.branch_id = b.branch_id
+JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
+JOIN Customer c ON ah.customer_id = c.customer_id
+JOIN Employee e ON c.employee_id = e.employee_id
+LEFT JOIN Transactions t ON ah.holder_id = t.holder_id
+GROUP BY sa.saving_account_id, sa.balance, sa.open_date, sa.status, sa.branch_id,
+         b.branch_name, sp.plan_name, sp.interest_rate, sp.min_balance,
+         c.customer_id, c.name, c.nic, e.employee_id, e.name;
+
+-- Enhanced Fixed Deposit View with Complete Details
+CREATE OR REPLACE VIEW vw_fd_details AS
+SELECT 
+    fd.fixed_deposit_id,
+    fd.saving_account_id,
+    fd.start_date,
+    fd.end_date,
+    fd.principal_amount,
+    fd.interest_payment_type,
+    fd.last_payout_date,
+    fd.status,
+    CASE 
+        WHEN fd.interest_payment_type = TRUE THEN 
+            COALESCE(fd.last_payout_date, fd.start_date) + INTERVAL '1 month'
+        ELSE fd.end_date
+    END AS next_payout_date,
+    fdp.f_plan_id,
+    fdp.months AS plan_months,
+    fdp.interest_rate,
+    (fd.principal_amount * fdp.interest_rate / 100) AS total_interest,
+    sa.branch_id,
+    b.branch_name,
+    c.customer_id,
+    c.name AS customer_name,
+    c.nic AS customer_nic,
+    e.employee_id AS agent_id,
+    e.name AS agent_name,
+    CASE 
+        WHEN fd.end_date < CURRENT_DATE THEN 'Matured'
+        WHEN fd.interest_payment_type = TRUE 
+             AND COALESCE(fd.last_payout_date, fd.start_date) + INTERVAL '1 month' < CURRENT_DATE 
+             THEN 'Payout Pending'
+        ELSE 'Active'
+    END AS fd_status
+FROM FixedDeposit fd
+JOIN FixedDeposit_Plans fdp ON fd.f_plan_id = fdp.f_plan_id
+JOIN SavingsAccount sa ON fd.saving_account_id = sa.saving_account_id
+JOIN Branch b ON sa.branch_id = b.branch_id
+JOIN AccountHolder ah ON sa.saving_account_id = ah.saving_account_id
+JOIN Customer c ON ah.customer_id = c.customer_id
+JOIN Employee e ON c.employee_id = e.employee_id
+WHERE fd.status = TRUE;
+
+-- Create indexes for the new materialized views
+CREATE INDEX idx_agent_trans_mv_employee ON vw_agent_transactions_mv(employee_id);
+CREATE INDEX idx_agent_trans_mv_branch ON vw_agent_transactions_mv(branch_id);
+CREATE INDEX idx_monthly_interest_mv_branch ON vw_monthly_interest_summary_mv(branch_id);
+CREATE INDEX idx_monthly_interest_mv_agent ON vw_monthly_interest_summary_mv(agent_id);
+CREATE INDEX idx_customer_activity_mv_branch ON vw_customer_activity_mv(branch_id);
+CREATE INDEX idx_customer_activity_mv_agent ON vw_customer_activity_mv(agent_id);
 
 -- ============================================================================
 -- 10. COMPLETION MESSAGE

@@ -10,6 +10,7 @@ from transaction import router as transaction_router
 from fixedDeposit import router as fixed_deposit_router
 from jointAccounts import router as joint_accounts_router
 from tasks import router as tasks_router
+from views import router as views_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -49,6 +50,8 @@ app.include_router(joint_accounts_router,
                    prefix='/joint-accounts', tags=["Joint Accounts"])
 app.include_router(tasks_router,
                    prefix='/tasks', tags=["Automated Tasks"])
+# Management Reports (router already has prefix/tags)
+app.include_router(views_router,prefix="/views", tags=["Management Reports"])
 
 
 @app.get("/")
