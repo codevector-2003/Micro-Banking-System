@@ -38,6 +38,10 @@ import {
   handleApiError as handleViewsApiError
 } from '../services/viewsService';
 
+// Import the detailed account view components
+import { BranchSavingsAccounts } from './BranchSavingsAccounts';
+import { BranchFixedDeposits } from './BranchFixedDeposits';
+
 export function ManagerDashboard() {
   const { user, logout } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('current-month');
@@ -86,8 +90,9 @@ export function ManagerDashboard() {
   useEffect(() => {
     if (user?.token) {
       loadBranchData();
-      loadSavingsAccounts();
-      loadFixedDeposits();
+      // No need to call these methods here as they're now handled by the respective components
+      // loadSavingsAccounts();
+      // loadFixedDeposits();
     }
   }, [user?.token]);
 
@@ -485,318 +490,20 @@ export function ManagerDashboard() {
 
           {/* Savings Accounts */}
           <TabsContent value="savings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Branch Savings Accounts</CardTitle>
-                    <CardDescription>
-                      All savings accounts in your branch
-                    </CardDescription>
-                  </div>
-                  <Button onClick={loadSavingsAccounts} disabled={loading}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Statistics Cards */}
-                {savingsStats && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold">{savingsStats.total_accounts}</div>
-                        <p className="text-xs text-muted-foreground">Total Accounts</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-green-600">{savingsStats.active_accounts}</div>
-                        <p className="text-xs text-muted-foreground">Active Accounts</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold">Rs. {savingsStats.total_balance.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Total Balance</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-blue-600">{savingsStats.new_accounts_this_month}</div>
-                        <p className="text-xs text-muted-foreground">New This Month</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {loading && <div className="text-center py-4">Loading savings accounts...</div>}
-
-                {/* Savings Accounts Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Account ID</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Customer Name</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Customer NIC</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Balance</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Open Date</th>
-                        <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Plan ID</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {savingsAccounts.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="border border-gray-300 px-4 py-8 text-center text-gray-500">
-                            No savings accounts found in your branch
-                          </td>
-                        </tr>
-                      ) : (
-                        savingsAccounts.map((account) => (
-                          <tr key={account.saving_account_id} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
-                              {account.saving_account_id}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2">
-                              {account.customer_name || 'Unknown'}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 font-mono">
-                              {account.customer_nic || 'N/A'}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-right font-medium">
-                              Rs. {account.balance.toLocaleString()}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2">
-                              {new Date(account.open_date).toLocaleDateString()}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-center">
-                              <Badge variant={account.status ? 'default' : 'secondary'}>
-                                {account.status ? 'Active' : 'Inactive'}
-                              </Badge>
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
-                              {account.s_plan_id}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Summary Footer */}
-                {savingsAccounts.length > 0 && savingsStats && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Average Balance:</span>
-                        <div className="text-lg font-semibold text-blue-600">
-                          Rs. {savingsStats.average_balance.toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Branch ID:</span>
-                        <div className="text-lg font-semibold text-blue-600">
-                          {savingsStats.branch_id}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Total Accounts:</span>
-                        <div className="text-lg font-semibold text-blue-600">
-                          {savingsAccounts.length}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Active Rate:</span>
-                        <div className="text-lg font-semibold text-green-600">
-                          {savingsStats.total_accounts > 0
-                            ? ((savingsStats.active_accounts / savingsStats.total_accounts) * 100).toFixed(1)
-                            : 0}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Using the enhanced BranchSavingsAccounts component */}
+            <BranchSavingsAccounts
+              token={user?.token || ''}
+              onError={(msg) => setError(msg)}
+            />
           </TabsContent>
 
           {/* Fixed Deposits */}
           <TabsContent value="deposits" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Branch Fixed Deposits</CardTitle>
-                    <CardDescription>
-                      All fixed deposits in your branch
-                    </CardDescription>
-                  </div>
-                  <Button onClick={loadFixedDeposits} disabled={loading}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Statistics Cards */}
-                {fixedDepositStats && (
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold">{fixedDepositStats.total_fixed_deposits}</div>
-                        <p className="text-xs text-muted-foreground">Total FDs</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-green-600">{fixedDepositStats.active_fixed_deposits}</div>
-                        <p className="text-xs text-muted-foreground">Active FDs</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold">Rs. {fixedDepositStats.total_principal_amount.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Total Principal</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-blue-600">{fixedDepositStats.new_fds_this_month}</div>
-                        <p className="text-xs text-muted-foreground">New This Month</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-orange-600">{fixedDepositStats.matured_fds}</div>
-                        <p className="text-xs text-muted-foreground">Matured FDs</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {loading && <div className="text-center py-4">Loading fixed deposits...</div>}
-
-                {/* Fixed Deposits Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">FD ID</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Savings Account</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Principal Amount</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Start Date</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">End Date</th>
-                        <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Interest Type</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Plan ID</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fixedDeposits.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="border border-gray-300 px-4 py-8 text-center text-gray-500">
-                            No fixed deposits found in your branch
-                          </td>
-                        </tr>
-                      ) : (
-                        fixedDeposits.map((deposit) => {
-                          const isMatured = new Date(deposit.end_date) <= new Date();
-                          const daysToMaturity = Math.ceil((new Date(deposit.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-                          return (
-                            <tr key={deposit.fixed_deposit_id} className="hover:bg-gray-50">
-                              <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
-                                {deposit.fixed_deposit_id}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
-                                {deposit.saving_account_id}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2 text-right font-medium">
-                                Rs. {deposit.principal_amount.toLocaleString()}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2">
-                                {new Date(deposit.start_date).toLocaleDateString()}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2">
-                                <div>
-                                  {new Date(deposit.end_date).toLocaleDateString()}
-                                  {deposit.status && !isMatured && (
-                                    <div className="text-xs text-gray-500">
-                                      {daysToMaturity > 0 ? `${daysToMaturity} days left` : 'Maturing soon'}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2 text-center">
-                                <div className="flex flex-col items-center space-y-1">
-                                  <Badge variant={deposit.status ? 'default' : 'secondary'}>
-                                    {deposit.status ? 'Active' : 'Inactive'}
-                                  </Badge>
-                                  {deposit.status && isMatured && (
-                                    <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                      Matured
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2 capitalize">
-                                {deposit.interest_payment_type ?
-                                  String(deposit.interest_payment_type).replace('_', ' ') :
-                                  'N/A'
-                                }
-                              </td>
-                              <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
-                                {deposit.f_plan_id}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Summary Footer */}
-                {fixedDeposits.length > 0 && fixedDepositStats && (
-                  <div className="mt-4 p-4 bg-green-50 rounded-lg">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Average Principal:</span>
-                        <div className="text-lg font-semibold text-green-600">
-                          Rs. {fixedDepositStats.average_principal_amount.toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Branch ID:</span>
-                        <div className="text-lg font-semibold text-green-600">
-                          {fixedDepositStats.branch_id}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Active Rate:</span>
-                        <div className="text-lg font-semibold text-green-600">
-                          {fixedDepositStats.total_fixed_deposits > 0
-                            ? ((fixedDepositStats.active_fixed_deposits / fixedDepositStats.total_fixed_deposits) * 100).toFixed(1)
-                            : 0}%
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Maturity Rate:</span>
-                        <div className="text-lg font-semibold text-orange-600">
-                          {fixedDepositStats.total_fixed_deposits > 0
-                            ? ((fixedDepositStats.matured_fds / fixedDepositStats.total_fixed_deposits) * 100).toFixed(1)
-                            : 0}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Using the enhanced BranchFixedDeposits component */}
+            <BranchFixedDeposits
+              token={user?.token || ''}
+              onError={(msg) => setError(msg)}
+            />
           </TabsContent>
 
           {/* Branch Analytics */}
