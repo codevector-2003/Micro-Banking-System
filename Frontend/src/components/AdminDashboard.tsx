@@ -26,6 +26,15 @@ import {
   type FixedDepositPlan,
   handleApiError as handleAdminApiError
 } from '../services/adminService';
+import {
+  ViewsService,
+  type AgentTransactionReport,
+  type AccountTransactionReport,
+  type ActiveFixedDepositReport,
+  type MonthlyInterestDistributionReport,
+  type CustomerActivityReport,
+  handleApiError as handleViewsApiError
+} from '../services/viewsService';
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -105,6 +114,17 @@ export function AdminDashboard() {
   const [savingsInterestReport, setSavingsInterestReport] = useState<any>(null);
   const [fdInterestReport, setFdInterestReport] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
+
+    // Views/Reports state
+    const [agentTransactionReport, setAgentTransactionReport] = useState<AgentTransactionReport | null>(null);
+    const [accountTransactionReport, setAccountTransactionReport] = useState<AccountTransactionReport | null>(null);
+    const [activeFDReport, setActiveFDReport] = useState<ActiveFixedDepositReport | null>(null);
+    const [monthlyInterestReport, setMonthlyInterestReport] = useState<MonthlyInterestDistributionReport | null>(null);
+    const [customerActivityReport, setCustomerActivityReport] = useState<CustomerActivityReport | null>(null);
+    const [viewsReportLoading, setViewsReportLoading] = useState(false);
+    const [selectedReportYear, setSelectedReportYear] = useState<number>(new Date().getFullYear());
+    const [selectedReportMonth, setSelectedReportMonth] = useState<number | undefined>(undefined);
+    const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   // Load initial data when component mounts
   useEffect(() => {
@@ -394,6 +414,55 @@ export function AdminDashboard() {
       setReportLoading(false);
     }
   };
+
+    // Views/Reports handlers
+    const loadAllSystemReports = async () => {
+      if (!user?.token) return;
+
+      try {
+        setViewsReportLoading(true);
+        setError('');
+      
+        const [agentReport, accountReport, fdReport, interestReport, activityReport] = await Promise.all([
+          ViewsService.getAgentTransactionReport(user.token),
+          ViewsService.getAccountTransactionReport(user.token),
+          ViewsService.getActiveFixedDeposits(user.token),
+          ViewsService.getMonthlyInterestDistribution(user.token, selectedReportYear, selectedReportMonth),
+          ViewsService.getCustomerActivityReport(user.token)
+        ]);
+
+        setAgentTransactionReport(agentReport);
+        setAccountTransactionReport(accountReport);
+        setActiveFDReport(fdReport);
+        setMonthlyInterestReport(interestReport);
+        setCustomerActivityReport(activityReport);
+        setSuccess('System reports loaded successfully');
+      } catch (error) {
+        setError(handleViewsApiError(error));
+      } finally {
+        setViewsReportLoading(false);
+      }
+    };
+
+    const handleRefreshSystemViews = async () => {
+      if (!user?.token) return;
+
+      try {
+        setViewsReportLoading(true);
+        setError('');
+      
+        await ViewsService.refreshMaterializedViews(user.token);
+        setLastRefreshTime(new Date());
+        setSuccess('System materialized views refreshed successfully');
+      
+        // Reload reports after refresh
+        await loadAllSystemReports();
+      } catch (error) {
+        setError(handleViewsApiError(error));
+      } finally {
+        setViewsReportLoading(false);
+      }
+    };
 
   const handleMatureFixedDeposits = async () => {
     if (!user?.token) return;

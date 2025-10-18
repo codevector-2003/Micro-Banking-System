@@ -28,6 +28,15 @@ import {
   type BranchFixedDepositStats,
   handleApiError
 } from '../services/managerService';
+import {
+  ViewsService,
+  type AgentTransactionReport,
+  type AccountTransactionReport,
+  type ActiveFixedDepositReport,
+  type MonthlyInterestDistributionReport,
+  type CustomerActivityReport,
+  handleApiError as handleViewsApiError
+} from '../services/viewsService';
 
 // Import the detailed account view components
 import { BranchSavingsAccounts } from './BranchSavingsAccounts';
@@ -65,6 +74,17 @@ export function ManagerDashboard() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [employeeSearchType, setEmployeeSearchType] = useState('name');
+
+    // Reports state
+    const [agentTransactionReport, setAgentTransactionReport] = useState<AgentTransactionReport | null>(null);
+    const [accountTransactionReport, setAccountTransactionReport] = useState<AccountTransactionReport | null>(null);
+    const [activeFDReport, setActiveFDReport] = useState<ActiveFixedDepositReport | null>(null);
+    const [monthlyInterestReport, setMonthlyInterestReport] = useState<MonthlyInterestDistributionReport | null>(null);
+    const [customerActivityReport, setCustomerActivityReport] = useState<CustomerActivityReport | null>(null);
+    const [reportLoading, setReportLoading] = useState(false);
+    const [selectedReportYear, setSelectedReportYear] = useState<number>(new Date().getFullYear());
+    const [selectedReportMonth, setSelectedReportMonth] = useState<number | undefined>(undefined);
+    const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   // Load initial data when component mounts
   useEffect(() => {
@@ -180,6 +200,56 @@ export function ManagerDashboard() {
       setLoading(false);
     }
   };
+
+    // Load all reports
+    const loadAllReports = async () => {
+      if (!user?.token) return;
+
+      try {
+        setReportLoading(true);
+        setError('');
+      
+        const [agentReport, accountReport, fdReport, interestReport, activityReport] = await Promise.all([
+          ViewsService.getAgentTransactionReport(user.token),
+          ViewsService.getAccountTransactionReport(user.token),
+          ViewsService.getActiveFixedDeposits(user.token),
+          ViewsService.getMonthlyInterestDistribution(user.token, selectedReportYear, selectedReportMonth),
+          ViewsService.getCustomerActivityReport(user.token)
+        ]);
+
+        setAgentTransactionReport(agentReport);
+        setAccountTransactionReport(accountReport);
+        setActiveFDReport(fdReport);
+        setMonthlyInterestReport(interestReport);
+        setCustomerActivityReport(activityReport);
+        setSuccess('Reports loaded successfully');
+      } catch (error) {
+        setError(handleViewsApiError(error));
+      } finally {
+        setReportLoading(false);
+      }
+    };
+
+    // Refresh materialized views
+    const handleRefreshViews = async () => {
+      if (!user?.token) return;
+
+      try {
+        setReportLoading(true);
+        setError('');
+      
+        await ViewsService.refreshMaterializedViews(user.token);
+        setLastRefreshTime(new Date());
+        setSuccess('Materialized views refreshed successfully');
+      
+        // Reload reports after refresh
+        await loadAllReports();
+      } catch (error) {
+        setError(handleViewsApiError(error));
+      } finally {
+        setReportLoading(false);
+      }
+    };
 
   const handleSearchEmployees = async () => {
     if (!user?.token || !employeeSearchQuery.trim()) {
@@ -710,82 +780,320 @@ export function ManagerDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Agent Performance Report */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-3">Agent Performance</h4>
-                    <div className="space-y-2">
-                      {employees.filter(emp => emp.type === 'Agent').length === 0 ? (
-                        <div className="text-sm text-gray-500">No agents found</div>
-                      ) : (
-                        employees
-                          .filter(emp => emp.type === 'Agent')
-                          .map((agent) => (
-                            <div key={agent.employee_id} className="flex justify-between text-sm">
-                              <span>{agent.name}</span>
-                              <span className={agent.status ? 'text-green-600' : 'text-gray-400'}>
-                                {agent.status ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                          ))
+                  <div className="space-y-4">
+                    {/* Control Bar */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Button 
+                          onClick={loadAllReports} 
+                          disabled={reportLoading}
+                          size="sm"
+                        >
+                          {reportLoading ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Load Reports
+                            </>
+                          )}
+                        </Button>
+                        <Button 
+                          onClick={handleRefreshViews} 
+                          disabled={reportLoading}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh Data
+                        </Button>
+                      </div>
+                      {lastRefreshTime && (
+                        <span className="text-sm text-gray-500">
+                          Last refreshed: {lastRefreshTime.toLocaleTimeString()}
+                        </span>
                       )}
                     </div>
-                  </div>
 
-                  {/* Customer Activity */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-3">Customer Activity</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Total Customers</span>
-                        <span>{branchStats.totalCustomers || 0}</span>
+                    {/* Summary Cards */}
+                    {agentTransactionReport && accountTransactionReport && activeFDReport && customerActivityReport && (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="flex items-center">
+                              <Users className="h-8 w-8 text-blue-600" />
+                              <div className="ml-3">
+                                <p className="text-sm text-gray-600">Active Agents</p>
+                                <p className="text-xl font-semibold">{agentTransactionReport.summary.total_agents}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="flex items-center">
+                              <DollarSign className="h-8 w-8 text-green-600" />
+                              <div className="ml-3">
+                                <p className="text-sm text-gray-600">Total Balance</p>
+                                <p className="text-xl font-semibold">Rs. {accountTransactionReport.summary.total_balance.toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="flex items-center">
+                              <FileText className="h-8 w-8 text-purple-600" />
+                              <div className="ml-3">
+                                <p className="text-sm text-gray-600">Active FDs</p>
+                                <p className="text-xl font-semibold">{activeFDReport.summary.total_fds}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="flex items-center">
+                              <TrendingUp className="h-8 w-8 text-orange-600" />
+                              <div className="ml-3">
+                                <p className="text-sm text-gray-600">Total Customers</p>
+                                <p className="text-xl font-semibold">{customerActivityReport.summary.total_customers}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
-                      <div className="flex justify-between">
-                        <span>New Accounts This Month</span>
-                        <span>{branchStats.newAccountsThisMonth || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Total Deposits</span>
-                        <span>${(branchStats.totalDeposits || 0).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
+                    )}
 
-                  {/* Monthly Trends */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-3">Monthly Trends</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Deposit Growth</span>
-                        <span className="text-green-600">+12.5%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Customer Growth</span>
-                        <span className="text-green-600">+8.3%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Transaction Volume</span>
-                        <span className="text-green-600">+15.2%</span>
-                      </div>
-                    </div>
-                  </div>
+                    {/* Agent Performance Report */}
+                    {agentTransactionReport && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Agent Transaction Summary</CardTitle>
+                          <CardDescription>
+                            Total transactions: {agentTransactionReport.summary.total_transactions.toLocaleString()} | 
+                            Total value: Rs. {agentTransactionReport.summary.total_value.toLocaleString()}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">Agent ID</th>
+                                  <th className="text-left p-2">Name</th>
+                                  <th className="text-left p-2">Branch</th>
+                                  <th className="text-right p-2">Transactions</th>
+                                  <th className="text-right p-2">Total Value</th>
+                                  <th className="text-center p-2">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {agentTransactionReport.data.map((agent) => (
+                                  <tr key={agent.employee_id} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{agent.employee_id}</td>
+                                    <td className="p-2">{agent.employee_name}</td>
+                                    <td className="p-2">{agent.branch_name}</td>
+                                    <td className="p-2 text-right">{agent.total_transactions.toLocaleString()}</td>
+                                    <td className="p-2 text-right">Rs. {agent.total_value.toLocaleString()}</td>
+                                    <td className="p-2 text-center">
+                                      <Badge variant={agent.employee_status ? "default" : "secondary"}>
+                                        {agent.employee_status ? "Active" : "Inactive"}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {/* Quick Actions */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-3">Quick Actions</h4>
-                    <div className="space-y-2">
-                      <Button variant="outline" size="sm" className="w-full">
-                        Export Monthly Report
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full">
-                        Generate Agent Summary
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full">
-                        Download Transaction Log
-                      </Button>
-                    </div>
+                    {/* Customer Activity Report */}
+                    {customerActivityReport && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Customer Activity Report</CardTitle>
+                          <CardDescription>
+                            Net flow: Rs. {customerActivityReport.summary.net_flow.toLocaleString()} | 
+                            Total deposits: Rs. {customerActivityReport.summary.total_deposits.toLocaleString()} | 
+                            Total withdrawals: Rs. {customerActivityReport.summary.total_withdrawals.toLocaleString()}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">Customer ID</th>
+                                  <th className="text-left p-2">Name</th>
+                                  <th className="text-center p-2">Accounts</th>
+                                  <th className="text-right p-2">Deposits</th>
+                                  <th className="text-right p-2">Withdrawals</th>
+                                  <th className="text-right p-2">Net Change</th>
+                                  <th className="text-right p-2">Current Balance</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {customerActivityReport.data.slice(0, 10).map((customer) => (
+                                  <tr key={customer.customer_id} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{customer.customer_id}</td>
+                                    <td className="p-2">{customer.customer_name}</td>
+                                    <td className="p-2 text-center">{customer.total_accounts}</td>
+                                    <td className="p-2 text-right text-green-600">Rs. {customer.total_deposits.toLocaleString()}</td>
+                                    <td className="p-2 text-right text-red-600">Rs. {customer.total_withdrawals.toLocaleString()}</td>
+                                    <td className={`p-2 text-right ${customer.net_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      Rs. {customer.net_change.toLocaleString()}
+                                    </td>
+                                    <td className="p-2 text-right font-medium">Rs. {customer.current_total_balance.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {customerActivityReport.data.length > 10 && (
+                            <p className="text-sm text-gray-500 mt-2">Showing top 10 of {customerActivityReport.data.length} customers</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Active Fixed Deposits */}
+                    {activeFDReport && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Active Fixed Deposits</CardTitle>
+                          <CardDescription>
+                            Total principal: Rs. {activeFDReport.summary.total_principal_amount.toLocaleString()} | 
+                            Expected interest: Rs. {activeFDReport.summary.total_expected_interest.toLocaleString()} |
+                            Pending payouts: {activeFDReport.summary.pending_payouts}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">FD ID</th>
+                                  <th className="text-left p-2">Customer</th>
+                                  <th className="text-right p-2">Principal</th>
+                                  <th className="text-center p-2">Rate</th>
+                                  <th className="text-center p-2">Months</th>
+                                  <th className="text-left p-2">Next Payout</th>
+                                  <th className="text-center p-2">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {activeFDReport.data.slice(0, 10).map((fd) => (
+                                  <tr key={fd.fixed_deposit_id} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{fd.fixed_deposit_id}</td>
+                                    <td className="p-2">{fd.customer_name}</td>
+                                    <td className="p-2 text-right">Rs. {fd.principal_amount.toLocaleString()}</td>
+                                    <td className="p-2 text-center">{fd.interest_rate}%</td>
+                                    <td className="p-2 text-center">{fd.plan_months}</td>
+                                    <td className="p-2">{fd.next_payout_date ? new Date(fd.next_payout_date).toLocaleDateString() : 'N/A'}</td>
+                                    <td className="p-2 text-center">
+                                      <Badge variant={fd.fd_status === 'Payout Pending' ? "destructive" : "default"}>
+                                        {fd.fd_status}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {activeFDReport.data.length > 10 && (
+                            <p className="text-sm text-gray-500 mt-2">Showing 10 of {activeFDReport.data.length} fixed deposits</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Monthly Interest Distribution */}
+                    {monthlyInterestReport && monthlyInterestReport.data.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle>Monthly Interest Distribution</CardTitle>
+                              <CardDescription>
+                                Total interest paid: Rs. {monthlyInterestReport.summary.total_interest_paid.toLocaleString()} | 
+                                Accounts with interest: {monthlyInterestReport.summary.total_accounts_with_interest}
+                              </CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                              <Select value={selectedReportYear.toString()} onValueChange={(val) => setSelectedReportYear(parseInt(val))}>
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[2024, 2025, 2026].map(year => (
+                                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Select value={selectedReportMonth?.toString() || "all"} onValueChange={(val) => setSelectedReportMonth(val === "all" ? undefined : parseInt(val))}>
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="All months" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Months</SelectItem>
+                                  {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                                    <SelectItem key={month} value={month.toString()}>
+                                      {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">Plan Type</th>
+                                  <th className="text-left p-2">Month</th>
+                                  <th className="text-left p-2">Branch</th>
+                                  <th className="text-center p-2">Accounts</th>
+                                  <th className="text-right p-2">Total Interest</th>
+                                  <th className="text-right p-2">Average</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {monthlyInterestReport.data.slice(0, 10).map((item, idx) => (
+                                  <tr key={idx} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{item.plan_name}</td>
+                                    <td className="p-2">{new Date(item.month).toLocaleDateString('default', { year: 'numeric', month: 'short' })}</td>
+                                    <td className="p-2">{item.branch_name}</td>
+                                    <td className="p-2 text-center">{item.account_count}</td>
+                                    <td className="p-2 text-right">Rs. {item.total_interest_paid.toLocaleString()}</td>
+                                    <td className="p-2 text-right">Rs. {item.average_interest_per_account.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Empty State */}
+                    {!reportLoading && !agentTransactionReport && (
+                      <Card>
+                        <CardContent className="p-12 text-center">
+                          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600 mb-4">No reports loaded yet</p>
+                          <Button onClick={loadAllReports}>Load Reports</Button>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

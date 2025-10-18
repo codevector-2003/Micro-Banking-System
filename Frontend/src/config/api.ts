@@ -16,7 +16,15 @@ export const API_ENDPOINTS = {
     TRANSACTIONS: '/transactions',
     FIXED_DEPOSITS: '/fixed-deposits',
     JOINT_ACCOUNTS: '/joint-accounts',
-    TASKS: '/tasks'
+    TASKS: '/tasks',
+    VIEWS: {
+        AGENT_TRANSACTIONS: '/views/report/agent-transactions',
+        ACCOUNT_TRANSACTIONS: '/views/report/account-transactions',
+        ACTIVE_FDS: '/views/report/active-fixed-deposits',
+        MONTHLY_INTEREST: '/views/report/monthly-interest-distribution',
+        CUSTOMER_ACTIVITY: '/views/report/customer-activity',
+        REFRESH_VIEWS: '/views/refresh-views'
+    }
 } as const;
 
 // Helper function to build full URL
