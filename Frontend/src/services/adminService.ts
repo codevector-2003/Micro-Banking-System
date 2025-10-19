@@ -455,24 +455,190 @@ export class FDPlansService {
     }
 }
 
+// Customer Service (for Admin use)
+export class CustomerService {
+    static async getAllCustomers(token: string): Promise<any[]> {
+        const response = await fetch(buildApiUrl('/customers/'), {
+            method: 'GET',
+            headers: getAuthHeaders(token),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to fetch customers');
+        }
+
+        return response.json();
+    }
+
+    static async searchCustomers(searchQuery: {
+        customer_id?: string;
+        name?: string;
+        nic?: string;
+        phone_number?: string;
+    }, token: string): Promise<any[]> {
+        const response = await fetch(buildApiUrl('/customer/search'), {
+            method: 'POST',
+            headers: getAuthHeaders(token),
+            body: JSON.stringify(searchQuery),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Customer search failed');
+        }
+
+        return response.json();
+    }
+
+    static async updateCustomer(customerId: string, updates: any, token: string): Promise<any> {
+        const response = await fetch(buildApiUrl('/customer/update'), {
+            method: 'PUT',
+            headers: getAuthHeaders(token),
+            body: JSON.stringify({ customer_id: customerId, ...updates }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update customer');
+        }
+
+        return response.json();
+    }
+}
+
 // System Statistics Service
 export class SystemStatsService {
     static async getSystemStatistics(token: string): Promise<any> {
         try {
-            // Get data from multiple endpoints to compile statistics
-            const [branches, employees] = await Promise.all([
+            // Get data from multiple endpoints to compile comprehensive statistics
+            const [
+                branches, 
+                employees, 
+                customers, 
+                agentTransactions,
+                activeFDs,
+                monthlyInterest
+            ] = await Promise.all([
                 BranchService.getAllBranches(token),
                 EmployeeService.getAllEmployees(token),
+                // Get all customers (admin can see all)
+                fetch(buildApiUrl('/customers/'), {
+                    headers: getAuthHeaders(token)
+                }).then(res => res.ok ? res.json() : []),
+                // Get agent transaction report for total transaction values
+                fetch(buildApiUrl('/views/report/agent-transactions'), {
+                    headers: getAuthHeaders(token)
+                }).then(res => res.ok ? res.json() : { data: [], summary: { total_value: 0 } }),
+                // Get active fixed deposits
+                fetch(buildApiUrl('/views/report/active-fixed-deposits'), {
+                    headers: getAuthHeaders(token)
+                }).then(res => res.ok ? res.json() : { data: [], summary: { total_active_fds: 0, total_principal: 0 } }),
+                // Get monthly interest distribution for interest payout
+                fetch(buildApiUrl('/views/report/monthly-interest-distribution'), {
+                    headers: getAuthHeaders(token)
+                }).then(res => res.ok ? res.json() : { data: [], summary: { total_interest: 0 } })
             ]);
+
+            // Calculate totals from the data
+            const totalCustomers = Array.isArray(customers) ? customers.length : 0;
+            const totalDeposits = activeFDs?.summary?.total_principal || 0;
+            const monthlyInterestPayout = monthlyInterest?.summary?.total_interest || 0;
+            const activeFDsCount = activeFDs?.summary?.total_active_fds || activeFDs?.data?.length || 0;
 
             return {
                 totalBranches: branches.length,
                 totalEmployees: employees.length,
+                totalCustomers: totalCustomers,
+                totalDeposits: totalDeposits,
+                monthlyInterestPayout: monthlyInterestPayout,
+                activeFDs: activeFDsCount,
                 activeBranches: branches.filter(b => b.status).length,
                 activeEmployees: employees.filter(e => e.status).length,
             };
         } catch (error) {
-            throw new Error('Failed to compile system statistics');
+            console.error('Failed to compile system statistics:', error);
+            // Return default values on error rather than throwing
+            return {
+                totalBranches: 0,
+                totalEmployees: 0,
+                totalCustomers: 0,
+                totalDeposits: 0,
+                monthlyInterestPayout: 0,
+                activeFDs: 0,
+                activeBranches: 0,
+                activeEmployees: 0,
+            };
+        }
+    }
+
+    static async getCustomerCount(token: string): Promise<number> {
+        try {
+            const response = await fetch(buildApiUrl('/customers/'), {
+                headers: getAuthHeaders(token)
+            });
+
+            if (!response.ok) {
+                console.error('Failed to fetch customers');
+                return 0;
+            }
+
+            const customers = await response.json();
+            return Array.isArray(customers) ? customers.length : 0;
+        } catch (error) {
+            console.error('Error fetching customer count:', error);
+            return 0;
+        }
+    }
+
+    static async getDepositTotals(token: string): Promise<{ totalSavings: number; totalFDs: number; totalDeposits: number }> {
+        try {
+            const activeFDsResponse = await fetch(buildApiUrl('/views/report/active-fixed-deposits'), {
+                headers: getAuthHeaders(token)
+            });
+
+            if (!activeFDsResponse.ok) {
+                return { totalSavings: 0, totalFDs: 0, totalDeposits: 0 };
+            }
+
+            const activeFDs = await activeFDsResponse.json();
+            const totalFDs = activeFDs?.summary?.total_principal || 0;
+
+            // For savings accounts, we'll need to calculate from account transactions or estimate
+            // For now, we'll use the FD total as the main metric
+            const totalDeposits = totalFDs;
+
+            return {
+                totalSavings: 0, // Can be implemented with a dedicated endpoint if needed
+                totalFDs: totalFDs,
+                totalDeposits: totalDeposits
+            };
+        } catch (error) {
+            console.error('Error fetching deposit totals:', error);
+            return { totalSavings: 0, totalFDs: 0, totalDeposits: 0 };
+        }
+    }
+
+    static async getMonthlyInterestPayout(token: string): Promise<number> {
+        try {
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth() + 1;
+
+            const response = await fetch(
+                buildApiUrl(`/views/report/monthly-interest-distribution?year=${currentYear}&month=${currentMonth}`),
+                { headers: getAuthHeaders(token) }
+            );
+
+            if (!response.ok) {
+                return 0;
+            }
+
+            const interestData = await response.json();
+            return interestData?.summary?.total_interest || 0;
+        } catch (error) {
+            console.error('Error fetching monthly interest payout:', error);
+            return 0;
         }
     }
 }

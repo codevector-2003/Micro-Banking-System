@@ -10,7 +10,7 @@ import { LogOut, Building, Settings, BarChart3, RefreshCw, Plus, Edit, Trash2, B
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { ConnectionTest } from './ConnectionTest';
-import { CustomerService, type Customer, handleApiError } from '../services/agentService';
+import { type Customer, handleApiError } from '../services/agentService';
 import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
 import { AuthService, type RegisterRequest } from '../services/authService';
 import {
@@ -19,6 +19,7 @@ import {
   TasksService,
   SystemStatsService,
   FDPlansService,
+  CustomerService,
   type Branch,
   type Employee,
   type TaskStatus,
@@ -640,7 +641,7 @@ export function AdminDashboard() {
         employee_id: ''
       });
     } catch (error) {
-      setError(handleApiError(error));
+      setError(handleAdminApiError(error));
     } finally {
       setLoading(false);
     }
@@ -671,7 +672,7 @@ export function AdminDashboard() {
       const customerList = await CustomerService.getAllCustomers(user.token);
       setCustomers(customerList);
     } catch (error) {
-      setError(handleApiError(error));
+      setError(handleAdminApiError(error));
     } finally {
       setLoading(false);
     }
@@ -703,7 +704,7 @@ export function AdminDashboard() {
       setCustomers(results);
       setSuccess(`Found ${results.length} customer(s)`);
     } catch (error) {
-      setError(handleApiError(error));
+      setError(handleAdminApiError(error));
     } finally {
       setLoading(false);
     }
@@ -733,7 +734,7 @@ export function AdminDashboard() {
       setEditingCustomer(null);
       setSelectedCustomer(updatedCustomer);
     } catch (error) {
-      setError(handleApiError(error));
+      setError(handleAdminApiError(error));
     } finally {
       setLoading(false);
     }

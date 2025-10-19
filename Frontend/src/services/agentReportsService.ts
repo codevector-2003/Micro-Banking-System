@@ -107,9 +107,61 @@ export interface DateFilter {
 // Agent Reports Service with hardcoded data for development
 export class AgentReportsService {
     /**
-     * Get agent's transaction summary
+     * Get agent's transaction summary from the customer activity report
      */
     static async getMyTransactionSummary(
+        token: string,
+        filters?: DateFilter
+    ): Promise<MyTransactionSummary> {
+        try {
+            // Use the customer activity report to get transaction summary
+            const response = await fetch(buildApiUrl('/views/report/customer-activity'), {
+                method: 'GET',
+                headers: getAuthHeaders(token),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch transaction summary: ${response.statusText}`);
+            }
+
+            const report = await response.json();
+
+            // Calculate totals from customer activity data
+            let totalDeposits = 0;
+            let totalWithdrawals = 0;
+            const transactions: MyTransaction[] = [];
+
+            if (report.data) {
+                report.data.forEach((customer: any) => {
+                    totalDeposits += customer.total_deposits || 0;
+                    totalWithdrawals += customer.total_withdrawals || 0;
+                });
+            }
+
+            return {
+                total_transactions: (report.summary?.total_deposits || 0) + (report.summary?.total_withdrawals || 0),
+                total_deposits: report.summary?.total_deposits || 0,
+                total_withdrawals: report.summary?.total_withdrawals || 0,
+                net_inflow: report.summary?.net_flow || 0,
+                transactions: transactions, // Empty for now - would need separate endpoint
+            };
+        } catch (error) {
+            console.error('Error fetching transaction summary:', error);
+            // Return default values on error
+            return {
+                total_transactions: 0,
+                total_deposits: 0,
+                total_withdrawals: 0,
+                net_inflow: 0,
+                transactions: [],
+            };
+        }
+    }
+
+    /**
+     * Get agent's transaction summary (old hardcoded version)
+     */
+    static async getMyTransactionSummaryHardcoded(
         token: string,
         filters?: DateFilter
     ): Promise<MyTransactionSummary> {
@@ -216,9 +268,102 @@ export class AgentReportsService {
     }
 
     /**
-     * Get list of agent's customers
+     * Get list of agent's customers with their account information
      */
     static async getMyCustomers(token: string): Promise<MyCustomer[]> {
+        try {
+            // Get all customers for the logged-in agent
+            const response = await fetch(buildApiUrl('/customers/'), {
+                method: 'GET',
+                headers: getAuthHeaders(token),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch customers: ${response.statusText}`);
+            }
+
+            const customers = await response.json();
+
+            // Transform the data to match MyCustomer interface
+            const myCustomers: MyCustomer[] = await Promise.all(
+                customers.map(async (customer: any) => {
+                    // Get account statistics for each customer
+                    let linkedAccounts = 0;
+                    let totalBalance = 0;
+                    let lastTransactionDate: string | undefined;
+
+                    try {
+                        // Search for accounts by customer
+                        const accountResponse = await fetch(
+                            buildApiUrl(`/saving-account/search`),
+                            {
+                                method: 'POST',
+                                headers: getAuthHeaders(token),
+                                body: JSON.stringify({ customer_id: customer.customer_id }),
+                            }
+                        );
+
+                        if (accountResponse.ok) {
+                            const accounts = await accountResponse.json();
+                            linkedAccounts = accounts.length;
+                            totalBalance = accounts.reduce((sum: number, acc: any) => sum + parseFloat(acc.balance || 0), 0);
+
+                            // Get last transaction date
+                            for (const account of accounts) {
+                                try {
+                                    const txResponse = await fetch(
+                                        buildApiUrl(`/transaction/search`),
+                                        {
+                                            method: 'POST',
+                                            headers: getAuthHeaders(token),
+                                            body: JSON.stringify({ saving_account_id: account.saving_account_id }),
+                                        }
+                                    );
+
+                                    if (txResponse.ok) {
+                                        const transactions = await txResponse.json();
+                                        if (transactions.length > 0) {
+                                            const latestTx = transactions[0];
+                                            if (!lastTransactionDate || new Date(latestTx.timestamp) > new Date(lastTransactionDate)) {
+                                                lastTransactionDate = latestTx.timestamp;
+                                            }
+                                        }
+                                    }
+                                } catch (error) {
+                                    console.error(`Error fetching transactions for account ${account.saving_account_id}:`, error);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching accounts for customer ${customer.customer_id}:`, error);
+                    }
+
+                    return {
+                        customer_id: customer.customer_id,
+                        customer_name: customer.name,
+                        phone_number: customer.phone_number,
+                        email: customer.email,
+                        registration_date: customer.date_of_birth, // Using date_of_birth as placeholder
+                        linked_accounts: linkedAccounts,
+                        total_balance: totalBalance,
+                        last_transaction_date: lastTransactionDate,
+                        status: customer.status ? 'Active' : 'Inactive',
+                    };
+                })
+            );
+
+            return myCustomers;
+        } catch (error) {
+            console.error('Error fetching my customers:', error);
+            // Return empty array on error
+            return [];
+        }
+    }
+
+    /**
+     * Get list of agent's customers (simplified version - faster)
+     */
+    static async getMyCustomersSimple(token: string): Promise<MyCustomer[]> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 resolve([
@@ -345,6 +490,100 @@ export class AgentReportsService {
         token: string,
         filters?: DateFilter
     ): Promise<AccountDetailsWithHistory> {
+        try {
+            // Get account summary from views
+            const summaryResponse = await fetch(
+                buildApiUrl(`/views/report/account-transactions?account_number=${accountId}`),
+                {
+                    method: 'GET',
+                    headers: getAuthHeaders(token),
+                }
+            );
+
+            if (!summaryResponse.ok) {
+                throw new Error(`Failed to fetch account details: ${summaryResponse.statusText}`);
+            }
+
+            const summaryReport = await summaryResponse.json();
+            const accountData = summaryReport.data?.[0];
+
+            if (!accountData) {
+                throw new Error('Account not found');
+            }
+
+            // Get transaction history
+            const transactionsResponse = await fetch(
+                buildApiUrl(`/transaction/search?account_id=${accountId}`),
+                {
+                    method: 'GET',
+                    headers: getAuthHeaders(token),
+                }
+            );
+
+            const transactionsData = transactionsResponse.ok
+                ? await transactionsResponse.json()
+                : { transactions: [] };
+
+            // Get account details
+            const accountDetailsResponse = await fetch(
+                buildApiUrl(`/saving-account/${accountId}`),
+                {
+                    method: 'GET',
+                    headers: getAuthHeaders(token),
+                }
+            );
+
+            const accountDetails = accountDetailsResponse.ok
+                ? await accountDetailsResponse.json()
+                : null;
+
+            const account: AccountDetail = {
+                account_id: accountId,
+                account_type: accountData.account_type || 'savings',
+                current_balance: accountData.current_balance || 0,
+                minimum_balance: accountDetails?.minimum_balance || 0,
+                open_date: accountDetails?.open_date || '',
+                status: accountDetails?.status || 'Active',
+                plan_name: accountDetails?.plan_name || 'Standard',
+                interest_rate: accountDetails?.interest_rate || 0,
+            };
+
+            const transactions: AccountTransaction[] = (transactionsData.transactions || []).map((t: any) => ({
+                transaction_id: t.transaction_id?.toString() || '',
+                date_time: t.transaction_datetime || '',
+                transaction_type: t.transaction_type || 'unknown',
+                amount: t.amount || 0,
+                reference_number: t.reference_number || '',
+                description: t.description || '',
+                balance_after: t.balance || accountData.current_balance,
+            }));
+
+            const deposits = transactions.filter(t => t.transaction_type.toLowerCase() === 'deposit');
+            const withdrawals = transactions.filter(t => t.transaction_type.toLowerCase() === 'withdrawal');
+
+            return {
+                account,
+                transactions,
+                summary: {
+                    total_transactions: transactions.length,
+                    total_deposits: deposits.reduce((sum, t) => sum + t.amount, 0),
+                    total_withdrawals: withdrawals.reduce((sum, t) => sum + t.amount, 0),
+                },
+            };
+        } catch (error) {
+            console.error('Error fetching account details:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get account details with transaction history (old hardcoded version)
+     */
+    static async getAccountDetailsWithHistoryHardcoded(
+        accountId: string,
+        token: string,
+        filters?: DateFilter
+    ): Promise<AccountDetailsWithHistory> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 const account: AccountDetail = {
@@ -426,6 +665,41 @@ export class AgentReportsService {
      * Get linked fixed deposits for agent's customers
      */
     static async getLinkedFixedDeposits(token: string): Promise<LinkedFixedDeposit[]> {
+        try {
+            const response = await fetch(buildApiUrl('/views/report/active-fixed-deposits'), {
+                method: 'GET',
+                headers: getAuthHeaders(token),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch fixed deposits: ${response.statusText}`);
+            }
+
+            const report = await response.json();
+
+            return (report.data || []).map((fd: any) => ({
+                fd_id: fd.fd_id?.toString() || '',
+                customer_names: fd.customer_names ? fd.customer_names.split(', ') : [],
+                linked_savings_account: fd.savings_account_id?.toString() || '',
+                principal_amount: fd.principal_amount || 0,
+                start_date: fd.start_date || '',
+                maturity_date: fd.maturity_date || '',
+                interest_rate: fd.interest_rate || 0,
+                next_payout_date: fd.next_interest_date || '',
+                total_interest_credited: fd.interest_paid || 0,
+                status: fd.status || 'Active',
+                plan_months: fd.plan_duration || 0,
+            }));
+        } catch (error) {
+            console.error('Error fetching fixed deposits:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get linked fixed deposits for agent's customers (old hardcoded version)
+     */
+    static async getLinkedFixedDepositsHardcoded(token: string): Promise<LinkedFixedDeposit[]> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 resolve([
@@ -506,6 +780,43 @@ export class AgentReportsService {
         token: string,
         month?: string
     ): Promise<MonthlyInterestSummary[]> {
+        try {
+            const url = month
+                ? buildApiUrl(`/views/report/monthly-interest-distribution?month_year=${month}`)
+                : buildApiUrl('/views/report/monthly-interest-distribution');
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: getAuthHeaders(token),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch interest summary: ${response.statusText}`);
+            }
+
+            const report = await response.json();
+
+            return (report.data || []).map((item: any) => ({
+                month_year: item.month_year || '',
+                account_type: item.account_type || '',
+                accounts_credited: item.accounts_credited || 0,
+                total_interest_credited: item.total_interest_credited || 0,
+                credit_batch_date: item.credit_batch_date || '',
+                average_interest_per_account: item.average_interest_per_account || 0,
+            }));
+        } catch (error) {
+            console.error('Error fetching monthly interest summary:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get monthly interest distribution summary (old hardcoded version)
+     */
+    static async getMonthlyInterestSummaryHardcoded(
+        token: string,
+        month?: string
+    ): Promise<MonthlyInterestSummary[]> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 resolve([
@@ -582,6 +893,42 @@ export class AgentReportsService {
      * Get customer activity summary
      */
     static async getCustomerActivitySummary(
+        token: string,
+        filters?: DateFilter
+    ): Promise<CustomerActivitySummary[]> {
+        try {
+            const response = await fetch(buildApiUrl('/views/report/customer-activity'), {
+                method: 'GET',
+                headers: getAuthHeaders(token),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch customer activity: ${response.statusText}`);
+            }
+
+            const report = await response.json();
+
+            return (report.data || []).map((customer: any) => ({
+                customer_id: customer.customer_id?.toString() || '',
+                customer_name: customer.customer_name || '',
+                total_deposits: customer.total_deposits || 0,
+                total_withdrawals: customer.total_withdrawals || 0,
+                net_balance: customer.net_flow || 0,
+                active_fd_count: customer.active_fd_count || 0,
+                fd_total_value: customer.fd_total_value || 0,
+                last_activity_date: customer.last_activity_date || '',
+                account_types: customer.account_types ? customer.account_types.split(', ') : [],
+            }));
+        } catch (error) {
+            console.error('Error fetching customer activity summary:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get customer activity summary (old hardcoded version)
+     */
+    static async getCustomerActivitySummaryHardcoded(
         token: string,
         filters?: DateFilter
     ): Promise<CustomerActivitySummary[]> {
