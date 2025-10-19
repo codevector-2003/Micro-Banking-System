@@ -84,7 +84,8 @@ def get_agent_transaction_report(
             
             query += " ORDER BY total_value DESC"
             
-            cursor.execute(query, tuple(params))
+            query1 = "SELECT * FROM vw_agent_transactions_mv WHERE employee_status = TRUE"
+            cursor.execute(query1, tuple(params))
             report = cursor.fetchall()
             
             # Calculate summary
@@ -93,7 +94,7 @@ def get_agent_transaction_report(
             
             return {
                 "success": True,
-                "report_name": "Agent-wise Transaction Summary",
+                "report_name": "Agent-wise Transaction Summary test",
                 "data": report,
                 "summary": {
                     "total_agents": len(report),
