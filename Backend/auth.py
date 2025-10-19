@@ -141,7 +141,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), conn=Depends(get
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        subject: str = payload.get("sub")
+        subject: Optional[str] = payload.get("sub")
         is_admin: bool = payload.get("is_admin", False)
 
         if subject is None:
