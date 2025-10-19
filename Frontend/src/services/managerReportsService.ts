@@ -220,14 +220,15 @@ export class ManagerReportsService {
     }
 
     // Utility function to calculate date ranges
-    static getDateRange(period: string): { startDate: string; endDate: string } {
+    static getDateRange(period: string): { start_date: string; end_date: string } {
         const now = new Date();
         const endDate = now.toISOString().split('T')[0];
         let startDate: Date;
 
         switch (period) {
             case 'this_week':
-                startDate = new Date(now.setDate(now.getDate() - 7));
+                startDate = new Date();
+                startDate.setDate(startDate.getDate() - 7);
                 break;
             case 'this_month':
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -236,21 +237,21 @@ export class ManagerReportsService {
                 startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                 break;
             case 'last_3_months':
-                startDate = new Date(now.setMonth(now.getMonth() - 3));
+                startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
                 break;
             case 'last_6_months':
-                startDate = new Date(now.setMonth(now.getMonth() - 6));
+                startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
                 break;
             case 'this_year':
                 startDate = new Date(now.getFullYear(), 0, 1);
                 break;
             default:
-                startDate = new Date(now.setMonth(now.getMonth() - 1));
+                startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         }
 
         return {
-            startDate: startDate.toISOString().split('T')[0],
-            endDate
+            start_date: startDate.toISOString().split('T')[0],
+            end_date: endDate
         };
     }
 
@@ -293,11 +294,11 @@ export class ManagerReportsService {
     // 2. Get Agent-wise Transaction Report
     static async getAgentTransactionReport(token: string, dateFilter: DateFilter): Promise<AgentTransactionReport> {
         try {
-            const { startDate, endDate } = dateFilter.period === 'custom'
-                ? { startDate: dateFilter.startDate!, endDate: dateFilter.endDate! }
-                : this.getDateRange(dateFilter.period);
+            const { start_date, end_date } = dateFilter.period === 'custom'
+                ? { start_date: dateFilter.startDate!, end_date: dateFilter.endDate! }
+                : this.getDateRange(dateFilter.period!);
 
-            const response = await fetch(`${this.BASE_URL}/agent-transactions?start_date=${startDate}&end_date=${endDate}`, {
+            const response = await fetch(`${this.BASE_URL}/agent-transactions?start_date=${start_date}&end_date=${end_date}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Failed to fetch agent transaction report');
@@ -434,7 +435,14 @@ export class ManagerReportsService {
                     total_withdrawals: mockAccounts.reduce((sum, acc) => sum + acc.total_withdrawals, 0)
                 },
                 data: mockAccounts,
-                filters: filters
+                filters: {
+                    account_type: filters.accountType,
+                    date_range: filters.dateFilter ? (
+                        filters.dateFilter.period === 'custom'
+                            ? { start_date: filters.dateFilter.startDate!, end_date: filters.dateFilter.endDate! }
+                            : this.getDateRange(filters.dateFilter.period!)
+                    ) : undefined
+                }
             };
         }
     }
@@ -652,7 +660,7 @@ export class ManagerReportsService {
             const dateRange = filters.dateFilter ?
                 (filters.dateFilter.period === 'custom'
                     ? { start_date: filters.dateFilter.startDate!, end_date: filters.dateFilter.endDate! }
-                    : this.getDateRange(filters.dateFilter.period))
+                    : this.getDateRange(filters.dateFilter.period!))
                 : this.getDateRange('this_month');
 
             return {
