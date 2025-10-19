@@ -4,8 +4,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users, Loader2, Edit, Save, X } from 'lucide-react';
+import { LogOut, Search, Plus, DollarSign, User, Building2, AlertTriangle, CreditCard, Clock, Users, Loader2, Edit, Save, X, BarChart3, FileText, TrendingUp, Calendar, Filter, Eye, Download, UserPlus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -27,10 +28,21 @@ import {
   type MyEmployeeInfo
 } from '../services/agentService';
 import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
+import {
+  AgentReportsService,
+  handleAgentReportsError,
+  type MyTransactionSummary,
+  type MyCustomer,
+  type AccountDetailsWithHistory,
+  type LinkedFixedDeposit,
+  type MonthlyInterestSummary,
+  type CustomerActivitySummary,
+  type DateFilter
+} from '../services/agentReportsService';
 
 export function AgentDashboard() {
   const { user, logout } = useAuth();
-  const [currentView, setCurrentView] = useState<'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint' | 'reports'>('home');
   const [searchType, setSearchType] = useState('customer_id');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -46,6 +58,19 @@ export function AgentDashboard() {
   const [fdAmount, setFdAmount] = useState('');
   const [selectedFdPlan, setSelectedFdPlan] = useState('');
   const [fdAccountId, setFdAccountId] = useState('');
+
+  // Reports state
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [myTransactionSummary, setMyTransactionSummary] = useState<MyTransactionSummary | null>(null);
+  const [myCustomers, setMyCustomers] = useState<MyCustomer[]>([]);
+  const [selectedAccountDetails, setSelectedAccountDetails] = useState<AccountDetailsWithHistory | null>(null);
+  const [linkedFDs, setLinkedFDs] = useState<LinkedFixedDeposit[]>([]);
+  const [monthlyInterest, setMonthlyInterest] = useState<MonthlyInterestSummary[]>([]);
+  const [customerActivity, setCustomerActivity] = useState<CustomerActivitySummary[]>([]);
+  const [selectedReportTab, setSelectedReportTab] = useState('transaction-summary');
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ period: 'this_month' });
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
+  const [selectedMonth, setSelectedMonth] = useState<string>('2024-10');
 
   // Customer editing state
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -136,7 +161,7 @@ export function AgentDashboard() {
   };
 
   // Helper to change view and clear messages
-  const changeView = (view: 'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint') => {
+  const changeView = (view: 'home' | 'search' | 'customer' | 'register' | 'create-account' | 'create-joint' | 'reports') => {
     setError('');
     setSuccess('');
 
@@ -153,7 +178,167 @@ export function AgentDashboard() {
       setEditingCustomer(null);
     }
 
+    // Load reports data when navigating to reports
+    if (view === 'reports') {
+      loadInitialReportsData();
+    }
+
     setCurrentView(view);
+  };
+
+  // Reports data loading functions
+  const loadInitialReportsData = async () => {
+    if (!user?.token) return;
+
+    setReportsLoading(true);
+    try {
+      // Load initial data for the first tab (transaction summary)
+      await loadMyTransactionSummary();
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadMyTransactionSummary = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportsLoading(true);
+      const summary = await AgentReportsService.getMyTransactionSummary(user.token, dateFilter);
+      setMyTransactionSummary(summary);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadMyCustomers = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportsLoading(true);
+      const customers = await AgentReportsService.getMyCustomers(user.token);
+      setMyCustomers(customers);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadAccountDetails = async (accountId: string) => {
+    if (!user?.token || !accountId) return;
+
+    try {
+      setReportsLoading(true);
+      const details = await AgentReportsService.getAccountDetailsWithHistory(accountId, user.token, dateFilter);
+      setSelectedAccountDetails(details);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadLinkedFixedDeposits = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportsLoading(true);
+      const fds = await AgentReportsService.getLinkedFixedDeposits(user.token);
+      setLinkedFDs(fds);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadMonthlyInterest = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportsLoading(true);
+      const interest = await AgentReportsService.getMonthlyInterestSummary(user.token, selectedMonth);
+      setMonthlyInterest(interest);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const loadCustomerActivity = async () => {
+    if (!user?.token) return;
+
+    try {
+      setReportsLoading(true);
+      const activity = await AgentReportsService.getCustomerActivitySummary(user.token, dateFilter);
+      setCustomerActivity(activity);
+    } catch (error) {
+      setError(handleAgentReportsError(error));
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const handleReportTabChange = async (tabValue: string) => {
+    setSelectedReportTab(tabValue);
+
+    // Load data based on selected tab
+    switch (tabValue) {
+      case 'transaction-summary':
+        await loadMyTransactionSummary();
+        break;
+      case 'my-customers':
+        await loadMyCustomers();
+        break;
+      case 'linked-fds':
+        await loadLinkedFixedDeposits();
+        break;
+      case 'monthly-interest':
+        await loadMonthlyInterest();
+        break;
+      case 'customer-activity':
+        await loadCustomerActivity();
+        break;
+    }
+  };
+
+  const handleDateFilterChange = async (period: string) => {
+    if (period === 'custom') {
+      setDateFilter({ period: 'custom' });
+    } else {
+      const dateRange = AgentReportsService.getDateRange(period);
+      setDateFilter({ period: period as 'this_week' | 'this_month' | 'last_month' | 'custom', ...dateRange });
+
+      // Reload current report with new filter
+      if (selectedReportTab === 'transaction-summary') {
+        await loadMyTransactionSummary();
+      } else if (selectedReportTab === 'customer-activity') {
+        await loadCustomerActivity();
+      }
+    }
+  };
+
+  const applyCustomDateFilter = async () => {
+    if (customDateRange.start && customDateRange.end) {
+      setDateFilter({
+        period: 'custom',
+        start_date: customDateRange.start,
+        end_date: customDateRange.end
+      });
+
+      // Reload current report with custom date range
+      if (selectedReportTab === 'transaction-summary') {
+        await loadMyTransactionSummary();
+      } else if (selectedReportTab === 'customer-activity') {
+        await loadCustomerActivity();
+      }
+    }
   };
 
   const handleCustomerSearch = async () => {
@@ -626,6 +811,14 @@ export function AgentDashboard() {
             <Users className="h-12 w-12 mx-auto mb-4 text-orange-600" />
             <h3 className="text-xl font-semibold mb-2">Create Joint Account</h3>
             <p className="text-gray-600">Open joint account for multiple customers</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => changeView('reports')}>
+          <CardContent className="p-6 text-center">
+            <BarChart3 className="h-12 w-12 mx-auto mb-4 text-indigo-600" />
+            <h3 className="text-xl font-semibold mb-2">Reports</h3>
+            <p className="text-gray-600">View transaction summaries, customer reports, and analytics</p>
           </CardContent>
         </Card>
       </div>
@@ -1411,6 +1604,1011 @@ export function AgentDashboard() {
     </div>
   );
 
+  const renderReports = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold">Reports Dashboard</h2>
+          <p className="text-gray-600">Comprehensive reports for your assigned customers and transactions</p>
+        </div>
+        <Button variant="outline" onClick={() => changeView('home')}>
+          Back to Home
+        </Button>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs value={selectedReportTab} onValueChange={handleReportTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="transaction-summary">My Transactions</TabsTrigger>
+          <TabsTrigger value="my-customers">My Customers</TabsTrigger>
+          <TabsTrigger value="account-details">Account Details</TabsTrigger>
+          <TabsTrigger value="linked-fds">Linked FDs</TabsTrigger>
+          <TabsTrigger value="monthly-interest">Monthly Interest</TabsTrigger>
+          <TabsTrigger value="customer-activity">Customer Activity</TabsTrigger>
+        </TabsList>
+
+        {/* My Transaction Summary */}
+        <TabsContent value="transaction-summary" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <BarChart3 className="h-5 w-5 mr-2" />
+                    My Transaction Summary
+                  </CardTitle>
+                  <CardDescription>All transactions handled by you</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={dateFilter.period || 'this_month'} onValueChange={handleDateFilterChange}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="this_week">This Week</SelectItem>
+                      <SelectItem value="this_month">This Month</SelectItem>
+                      <SelectItem value="last_month">Last Month</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={loadMyTransactionSummary} variant="outline" size="sm">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {dateFilter.period === 'custom' && (
+                <div className="mb-4 flex gap-2 items-end">
+                  <div>
+                    <Label className="text-sm">Start Date</Label>
+                    <Input
+                      type="date"
+                      value={customDateRange.start}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm">End Date</Label>
+                    <Input
+                      type="date"
+                      value={customDateRange.end}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    />
+                  </div>
+                  <Button onClick={applyCustomDateFilter} size="sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Apply
+                  </Button>
+                </div>
+              )}
+
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading transaction summary...</p>
+                </div>
+              )}
+
+              {myTransactionSummary && !reportsLoading && (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Total Transactions</p>
+                            <p className="text-2xl font-bold">{myTransactionSummary.total_transactions}</p>
+                          </div>
+                          <FileText className="h-8 w-8 text-blue-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Total Deposits</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {AgentReportsService.formatCurrency(myTransactionSummary.total_deposits)}
+                            </p>
+                          </div>
+                          <TrendingUp className="h-8 w-8 text-green-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Total Withdrawals</p>
+                            <p className="text-2xl font-bold text-red-600">
+                              {AgentReportsService.formatCurrency(myTransactionSummary.total_withdrawals)}
+                            </p>
+                          </div>
+                          <DollarSign className="h-8 w-8 text-red-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Net Inflow</p>
+                            <p className={`text-2xl font-bold ${myTransactionSummary.net_inflow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {AgentReportsService.formatCurrency(myTransactionSummary.net_inflow)}
+                            </p>
+                          </div>
+                          <BarChart3 className="h-8 w-8 text-purple-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Transactions Table */}
+                  <div className="border rounded-lg">
+                    <div className="p-4 border-b bg-gray-50">
+                      <h3 className="font-medium">Recent Transactions</h3>
+                    </div>
+                    <div className="divide-y">
+                      {myTransactionSummary.transactions.slice(0, 10).map((txn) => (
+                        <div key={txn.transaction_id} className="p-4 hover:bg-gray-50">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-4">
+                                <div>
+                                  <p className="font-medium">{txn.customer_name}</p>
+                                  <p className="text-sm text-gray-500">Account: {txn.account_number}</p>
+                                </div>
+                                <Badge variant={txn.transaction_type === 'Deposit' ? 'default' : txn.transaction_type === 'Withdrawal' ? 'destructive' : 'secondary'}>
+                                  {txn.transaction_type}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(txn.date_time).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-medium ${txn.transaction_type === 'Deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                                {txn.transaction_type === 'Deposit' ? '+' : '-'}
+                                {AgentReportsService.formatCurrency(txn.amount)}
+                              </p>
+                              <p className="text-xs text-gray-500">Ref: {txn.reference_number}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* My Customers List */}
+        <TabsContent value="my-customers" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <Users className="h-5 w-5 mr-2" />
+                    My Customers List
+                  </CardTitle>
+                  <CardDescription>All customers assigned to you</CardDescription>
+                </div>
+                <Button onClick={loadMyCustomers} variant="outline" size="sm">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading customers...</p>
+                </div>
+              )}
+
+              {myCustomers.length > 0 && !reportsLoading && (
+                <div className="space-y-4">
+                  {myCustomers.map((customer) => (
+                    <div key={customer.customer_id} className="p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <h4 className="font-medium">{customer.customer_name}</h4>
+                            <p className="text-sm text-gray-500">ID: {customer.customer_id}</p>
+                            <Badge variant={customer.status === 'Active' ? 'default' : 'secondary'}>
+                              {customer.status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Phone: {customer.phone_number}</p>
+                            <p className="text-sm text-gray-600">Email: {customer.email}</p>
+                            <p className="text-sm text-gray-600">Registered: {new Date(customer.registration_date).toLocaleDateString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Accounts: {customer.linked_accounts}</p>
+                            <p className="text-sm text-gray-600">Total Balance: {AgentReportsService.formatCurrency(customer.total_balance)}</p>
+                            <p className="text-sm text-gray-600">
+                              Last Transaction: {customer.last_transaction_date ? new Date(customer.last_transaction_date).toLocaleDateString() : 'Never'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedCustomer({
+                                customer_id: customer.customer_id,
+                                name: customer.customer_name,
+                                phone_number: customer.phone_number,
+                                email: customer.email,
+                                nic: '',
+                                address: '',
+                                date_of_birth: '',
+                                status: customer.status === 'Active',
+                                employee_id: ''
+                              });
+                              changeView('customer');
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Accounts
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <UserPlus className="h-4 w-4 mr-1" />
+                            New Transaction
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Account Details & Transaction History */}
+        <TabsContent value="account-details" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <CreditCard className="h-5 w-5 mr-2" />
+                Account Details & Transaction History
+              </CardTitle>
+              <CardDescription>Detailed view of account information and transaction history</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 flex gap-2">
+                <Input
+                  placeholder="Enter Account ID (e.g., SA001)"
+                  className="max-w-xs"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const accountId = (e.target as HTMLInputElement).value;
+                      if (accountId) {
+                        loadAccountDetails(accountId);
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    const input = document.querySelector('input[placeholder*="Account ID"]') as HTMLInputElement;
+                    if (input?.value) {
+                      loadAccountDetails(input.value);
+                    }
+                  }}
+                  size="sm"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+              </div>
+
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading account details...</p>
+                </div>
+              )}
+
+              {selectedAccountDetails && !reportsLoading && (
+                <div className="space-y-6">
+                  {/* Account Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Account Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Account ID:</span>
+                          <span className="font-medium">{selectedAccountDetails.account.account_id}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Account Type:</span>
+                          <span className="font-medium">{selectedAccountDetails.account.account_type}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Current Balance:</span>
+                          <span className="font-medium text-green-600">
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.account.current_balance)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Minimum Balance:</span>
+                          <span className="font-medium">
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.account.minimum_balance)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Interest Rate:</span>
+                          <span className="font-medium">{selectedAccountDetails.account.interest_rate}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <Badge variant={selectedAccountDetails.account.status === 'Active' ? 'default' : 'secondary'}>
+                            {selectedAccountDetails.account.status}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Transaction Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Transactions:</span>
+                          <span className="font-medium">{selectedAccountDetails.summary.total_transactions}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Deposits:</span>
+                          <span className="font-medium text-green-600">
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_deposits)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Withdrawals:</span>
+                          <span className="font-medium text-red-600">
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_withdrawals)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Net Change:</span>
+                          <span className={`font-medium ${(selectedAccountDetails.summary.total_deposits - selectedAccountDetails.summary.total_withdrawals) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_deposits - selectedAccountDetails.summary.total_withdrawals)}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Transaction History */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Transaction History</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="divide-y">
+                        {selectedAccountDetails.transactions.map((txn) => (
+                          <div key={txn.transaction_id} className="py-3">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={txn.transaction_type === 'Deposit' ? 'default' : txn.transaction_type === 'Withdrawal' ? 'destructive' : 'secondary'}>
+                                    {txn.transaction_type}
+                                  </Badge>
+                                  <span className="font-medium">{txn.description}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(txn.date_time).toLocaleString()} • Ref: {txn.reference_number}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`font-medium ${txn.transaction_type === 'Deposit' || txn.transaction_type === 'Interest' ? 'text-green-600' : 'text-red-600'}`}>
+                                  {txn.transaction_type === 'Deposit' || txn.transaction_type === 'Interest' ? '+' : '-'}
+                                  {AgentReportsService.formatCurrency(txn.amount)}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Balance: {AgentReportsService.formatCurrency(txn.balance_after)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Linked Fixed Deposits */}
+        <TabsContent value="linked-fds" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <Building2 className="h-5 w-5 mr-2" />
+                    Linked Fixed Deposits
+                  </CardTitle>
+                  <CardDescription>All FDs linked to your customers' accounts</CardDescription>
+                </div>
+                <Button onClick={loadLinkedFixedDeposits} variant="outline" size="sm">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading fixed deposits...</p>
+                </div>
+              )}
+
+              {linkedFDs.length > 0 && !reportsLoading && (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-blue-600">{linkedFDs.length}</p>
+                          <p className="text-sm text-gray-500">Total FDs</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">
+                            {linkedFDs.filter(fd => fd.status === 'Active').length}
+                          </p>
+                          <p className="text-sm text-gray-500">Active FDs</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-purple-600">
+                            {AgentReportsService.formatCurrency(
+                              linkedFDs.reduce((sum, fd) => sum + fd.principal_amount, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Total Principal</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-orange-600">
+                            {AgentReportsService.formatCurrency(
+                              linkedFDs.reduce((sum, fd) => sum + fd.total_interest_credited, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Interest Credited</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* FDs Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {linkedFDs.map((fd) => (
+                      <Card key={fd.fd_id} className={`${fd.status === 'Matured' ? 'bg-gray-50 border-gray-300' : 'hover:shadow-md transition-shadow'}`}>
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg">FD #{fd.fd_id}</CardTitle>
+                              <CardDescription>
+                                {fd.customer_names.join(' & ')}
+                              </CardDescription>
+                            </div>
+                            <Badge variant={fd.status === 'Active' ? 'default' : 'secondary'}>
+                              {fd.status}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-gray-600">Linked Account:</p>
+                              <p className="font-medium">{fd.linked_savings_account}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Principal Amount:</p>
+                              <p className="font-medium text-green-600">
+                                {AgentReportsService.formatCurrency(fd.principal_amount)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Interest Rate:</p>
+                              <p className="font-medium">{fd.interest_rate}% p.a.</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Plan Duration:</p>
+                              <p className="font-medium">{fd.plan_months} months</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Start Date:</p>
+                              <p className="font-medium">{new Date(fd.start_date).toLocaleDateString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Maturity Date:</p>
+                              <p className="font-medium">{new Date(fd.maturity_date).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-gray-600">Next Payout:</p>
+                                <p className={`font-medium ${fd.next_payout_date ? 'text-blue-600' : 'text-gray-500'}`}>
+                                  {fd.next_payout_date ? new Date(fd.next_payout_date).toLocaleDateString() : 'Matured'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">Interest Credited:</p>
+                                <p className="font-medium text-green-600">
+                                  {AgentReportsService.formatCurrency(fd.total_interest_credited)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {fd.status === 'Active' && fd.next_payout_date && (
+                            <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-800">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Next payout in {Math.ceil((new Date(fd.next_payout_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {linkedFDs.length === 0 && !reportsLoading && (
+                <div className="text-center py-12">
+                  <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Fixed Deposits Found</h3>
+                  <p className="text-gray-500">Your customers haven't opened any fixed deposits yet.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Monthly Interest Distribution */}
+        <TabsContent value="monthly-interest" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <Calendar className="h-5 w-5 mr-2" />
+                    Monthly Interest Distribution Summary
+                  </CardTitle>
+                  <CardDescription>Interest credited to your customers' accounts by month</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="w-40"
+                  />
+                  <Button onClick={loadMonthlyInterest} variant="outline" size="sm">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Load
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading interest summary...</p>
+                </div>
+              )}
+
+              {monthlyInterest.length > 0 && !reportsLoading && (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">
+                            {monthlyInterest.reduce((sum, item) => sum + item.accounts_credited, 0)}
+                          </p>
+                          <p className="text-sm text-gray-500">Accounts Credited</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">
+                            {AgentReportsService.formatCurrency(
+                              monthlyInterest.reduce((sum, item) => sum + item.total_interest_credited, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Total Interest</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-blue-600">
+                            {AgentReportsService.formatCurrency(
+                              monthlyInterest.length > 0
+                                ? monthlyInterest.reduce((sum, item) => sum + item.average_interest_per_account, 0) / monthlyInterest.length
+                                : 0
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Avg per Account</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-purple-600">
+                            {new Set(monthlyInterest.map(item => item.account_type)).size}
+                          </p>
+                          <p className="text-sm text-gray-500">Account Types</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Interest Details by Account Type */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {Array.from(new Set(monthlyInterest.map(item => item.account_type))).map((accountType) => {
+                      const typeData = monthlyInterest.filter(item => item.account_type === accountType);
+                      const totalInterest = typeData.reduce((sum, item) => sum + item.total_interest_credited, 0);
+                      const totalAccounts = typeData.reduce((sum, item) => sum + item.accounts_credited, 0);
+
+                      return (
+                        <Card key={accountType}>
+                          <CardHeader>
+                            <CardTitle className="text-lg">{accountType}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Total Accounts:</span>
+                              <span className="font-medium">{totalAccounts}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Total Interest:</span>
+                              <span className="font-medium text-green-600">
+                                {AgentReportsService.formatCurrency(totalInterest)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Average:</span>
+                              <span className="font-medium">
+                                {AgentReportsService.formatCurrency(totalAccounts > 0 ? totalInterest / totalAccounts : 0)}
+                              </span>
+                            </div>
+                            <div className="pt-2 border-t">
+                              <p className="text-xs text-gray-500">
+                                Last Credit: {typeData[0]?.credit_batch_date ? new Date(typeData[0].credit_batch_date).toLocaleDateString() : 'N/A'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detailed Monthly Breakdown */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Monthly Interest Distribution Details</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="divide-y">
+                        {monthlyInterest.map((item, index) => (
+                          <div key={index} className="py-4">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                              <div>
+                                <p className="font-medium text-gray-900">{item.account_type}</p>
+                                <p className="text-sm text-gray-500">{item.month_year}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Accounts</p>
+                                <p className="font-medium text-lg">{item.accounts_credited}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Total Interest</p>
+                                <p className="font-medium text-lg text-green-600">
+                                  {AgentReportsService.formatCurrency(item.total_interest_credited)}
+                                </p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Average</p>
+                                <p className="font-medium text-lg">
+                                  {AgentReportsService.formatCurrency(item.average_interest_per_account)}
+                                </p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Credit Date</p>
+                                <p className="font-medium">{new Date(item.credit_batch_date).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {monthlyInterest.length === 0 && !reportsLoading && (
+                <div className="text-center py-12">
+                  <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Interest Data Found</h3>
+                  <p className="text-gray-500 mb-4">No interest payments found for the selected month.</p>
+                  <p className="text-sm text-gray-400">Try selecting a different month or check if interest has been processed.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Customer Activity Summary */}
+        <TabsContent value="customer-activity" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    Customer Activity Summary
+                  </CardTitle>
+                  <CardDescription>Overview of customer deposits, withdrawals, and FD status</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={dateFilter.period || 'this_month'} onValueChange={handleDateFilterChange}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="this_week">This Week</SelectItem>
+                      <SelectItem value="this_month">This Month</SelectItem>
+                      <SelectItem value="last_month">Last Month</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={loadCustomerActivity} variant="outline" size="sm">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {dateFilter.period === 'custom' && (
+                <div className="mb-4 flex gap-2 items-end">
+                  <div>
+                    <Label className="text-sm">Start Date</Label>
+                    <Input
+                      type="date"
+                      value={customDateRange.start}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm">End Date</Label>
+                    <Input
+                      type="date"
+                      value={customDateRange.end}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    />
+                  </div>
+                  <Button onClick={applyCustomDateFilter} size="sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Apply
+                  </Button>
+                </div>
+              )}
+
+              {reportsLoading && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading customer activity...</p>
+                </div>
+              )}
+
+              {customerActivity.length > 0 && !reportsLoading && (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-blue-600">{customerActivity.length}</p>
+                          <p className="text-sm text-gray-500">Total Customers</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">
+                            {AgentReportsService.formatCurrency(
+                              customerActivity.reduce((sum, cust) => sum + cust.total_deposits, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Total Deposits</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-red-600">
+                            {AgentReportsService.formatCurrency(
+                              customerActivity.reduce((sum, cust) => sum + cust.total_withdrawals, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">Total Withdrawals</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-purple-600">
+                            {customerActivity.reduce((sum, cust) => sum + cust.active_fd_count, 0)}
+                          </p>
+                          <p className="text-sm text-gray-500">Active FDs</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-indigo-600">
+                            {AgentReportsService.formatCurrency(
+                              customerActivity.reduce((sum, cust) => sum + cust.fd_total_value, 0)
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">FD Value</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Customer Activity Details */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <CardTitle>Customer Activity Details</CardTitle>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm">
+                            <Download className="h-4 w-4 mr-2" />
+                            Export
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="divide-y">
+                        {customerActivity.map((customer) => (
+                          <div key={customer.customer_id} className="py-4 hover:bg-gray-50 rounded px-2">
+                            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                              <div>
+                                <p className="font-medium text-gray-900">{customer.customer_name}</p>
+                                <p className="text-sm text-gray-500">{customer.customer_id}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Deposits</p>
+                                <p className="font-medium text-green-600">
+                                  {AgentReportsService.formatCurrency(customer.total_deposits)}
+                                </p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Withdrawals</p>
+                                <p className="font-medium text-red-600">
+                                  {AgentReportsService.formatCurrency(customer.total_withdrawals)}
+                                </p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Net Balance</p>
+                                <p className={`font-medium ${customer.net_balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {AgentReportsService.formatCurrency(customer.net_balance)}
+                                </p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Active FDs</p>
+                                <p className="font-medium text-purple-600">{customer.active_fd_count}</p>
+                                {customer.fd_total_value > 0 && (
+                                  <p className="text-xs text-gray-500">
+                                    {AgentReportsService.formatCurrency(customer.fd_total_value)}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm text-gray-600">Last Activity</p>
+                                <p className="font-medium">{new Date(customer.last_activity_date).toLocaleDateString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Account Types</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {customer.account_types.slice(0, 2).map((type, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {type.replace(' Account', '')}
+                                    </Badge>
+                                  ))}
+                                  {customer.account_types.length > 2 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      +{customer.account_types.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {customerActivity.length === 0 && !reportsLoading && (
+                <div className="text-center py-12">
+                  <TrendingUp className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Customer Activity Found</h3>
+                  <p className="text-gray-500 mb-4">No customer activity data available for the selected period.</p>
+                  <p className="text-sm text-gray-400">Try selecting a different date range or check if transactions have been processed.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b">
@@ -1438,6 +2636,7 @@ export function AgentDashboard() {
         {currentView === 'register' && renderRegisterCustomer()}
         {currentView === 'create-account' && renderCreateAccount()}
         {currentView === 'create-joint' && renderCreateJointAccount()}
+        {currentView === 'reports' && renderReports()}
       </div>
     </div>
   );
