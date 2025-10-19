@@ -56,13 +56,8 @@ def get_agent_transaction_report(
             
             check_user_access(user_type, ['agent', 'branch_manager', 'admin'])
             
-            # Refresh materialized view for managers and admins
-            if user_type in ['branch_manager', 'admin']:
-                cursor.execute("REFRESH MATERIALIZED VIEW vw_agent_transactions_mv")
-                conn.commit()
-            
-            # Simple query - all data is in the materialized view
-            query = "SELECT * FROM vw_agent_transactions_mv WHERE employee_status = TRUE"
+            # Simple query - all data is in the view
+            query = "SELECT * FROM vw_agent_transactions WHERE employee_status = TRUE"
             params = []
             
             # Agent: Only their own performance
@@ -150,7 +145,6 @@ def get_account_transaction_report(
             query += " ORDER BY current_balance DESC, open_date DESC"
             
             cursor.execute(query, tuple(params))
-            print(cursor.query)
             report = cursor.fetchall()
             
             # Calculate summary
@@ -245,7 +239,7 @@ def get_monthly_interest_distribution_report(
 ):
     """
     Report 4: Monthly interest distribution summary by account type
-    Uses enhanced vw_monthly_interest_summary_mv materialized view
+    Uses vw_monthly_interest_summary_mv materialized view
     """
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -336,7 +330,7 @@ def get_customer_activity_report(
 ):
     """
     Report 5: Customer activity report (total deposits, withdrawals, and net balance)
-    Uses enhanced vw_customer_activity_mv materialized view with all data
+    Uses vw_customer_activity view with all data
     """
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -345,8 +339,8 @@ def get_customer_activity_report(
             
             check_user_access(user_type, ['agent', 'branch_manager', 'admin'])
             
-            # Simple query - all data is in the materialized view
-            query = "SELECT * FROM vw_customer_activity_mv WHERE customer_status = TRUE"
+            # Simple query - all data is in the view
+            query = "SELECT * FROM vw_customer_activity WHERE customer_status = TRUE"
             params = []
             
             # Agent: Only their customers
@@ -410,9 +404,7 @@ def refresh_materialized_views(
             check_user_access(user_type, ['branch_manager', 'admin'])
             
             materialized_views = [
-                "vw_agent_transactions_mv",
-                "vw_monthly_interest_summary_mv",
-                "vw_customer_activity_mv"
+                "vw_monthly_interest_summary_mv"
             ]
             
             refreshed = []
