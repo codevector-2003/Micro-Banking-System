@@ -77,15 +77,9 @@ def get_agent_transaction_report(
                 query += " AND branch_id = %s"
                 params.append(context['branch_id'])
             
-            # Apply employee_id filter if provided
-            if employee_id:
-                query += " AND employee_id = %s"
-                params.append(employee_id)
-            
             query += " ORDER BY total_value DESC"
-            
-            query1 = "SELECT * FROM vw_agent_transactions_mv WHERE employee_status = TRUE"
-            cursor.execute(query1, tuple(params))
+
+            cursor.execute(query, tuple(params))
             report = cursor.fetchall()
             
             # Calculate summary
@@ -94,7 +88,7 @@ def get_agent_transaction_report(
             
             return {
                 "success": True,
-                "report_name": "Agent-wise Transaction Summary test",
+                "report_name": "Agent-wise Transaction Summary",
                 "data": report,
                 "summary": {
                     "total_agents": len(report),
@@ -156,6 +150,7 @@ def get_account_transaction_report(
             query += " ORDER BY current_balance DESC, open_date DESC"
             
             cursor.execute(query, tuple(params))
+            print(cursor.query)
             report = cursor.fetchall()
             
             # Calculate summary
@@ -415,7 +410,6 @@ def refresh_materialized_views(
             check_user_access(user_type, ['branch_manager', 'admin'])
             
             materialized_views = [
-                "joint_accounts_holders_mv",
                 "vw_agent_transactions_mv",
                 "vw_monthly_interest_summary_mv",
                 "vw_customer_activity_mv"
