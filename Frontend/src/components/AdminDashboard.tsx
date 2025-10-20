@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Building, Settings, BarChart3, RefreshCw, Plus, Edit, Trash2, Building2, User, Search, Save, X, Users, UserCheck, DollarSign, TrendingUp } from 'lucide-react';
+import { LogOut, Building, Settings, BarChart3, RefreshCw, Plus, Edit, Trash2, Building2, User, Search, Save, X, Users, UserCheck, DollarSign, TrendingUp, Download, FileDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { ConnectionTest } from './ConnectionTest';
@@ -36,6 +36,7 @@ import {
   type CustomerActivityReport,
   handleApiError as handleViewsApiError
 } from '../services/viewsService';
+import { CSVExportService } from '../services/csvExportService';
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -2303,6 +2304,265 @@ export function AdminDashboard() {
                 </Button>
               </div>
             )}
+
+            {/* Detailed System Reports Section */}
+            <div className="mt-8">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Detailed System Reports</h3>
+                  <p className="text-sm text-gray-600">Generate and download comprehensive reports from database views</p>
+                </div>
+                <Button onClick={loadAllSystemReports} disabled={viewsReportLoading} variant="outline" size="sm">
+                  <RefreshCw className={`h-4 w-4 mr-2 ${viewsReportLoading ? 'animate-spin' : ''}`} />
+                  Load All Reports
+                </Button>
+              </div>
+
+              {viewsReportLoading && (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <p className="mt-2 text-gray-600">Loading detailed reports...</p>
+                </div>
+              )}
+
+              {!viewsReportLoading && (agentTransactionReport || accountTransactionReport || activeFDReport || monthlyInterestReport || customerActivityReport) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {/* Report 1: Agent Transaction Summary */}
+                  {agentTransactionReport && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">1. Agent Transaction Report</CardTitle>
+                        <CardDescription className="text-xs">
+                          {agentTransactionReport.data.length} agents | 
+                          {agentTransactionReport.summary?.total_transactions || 0} transactions
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Value:</span>
+                            <span className="font-semibold">
+                              Rs. {(agentTransactionReport.summary?.total_value || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Active Agents:</span>
+                            <span className="font-semibold">{agentTransactionReport.summary?.total_agents || 0}</span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => CSVExportService.exportAgentTransactionReport(agentTransactionReport.data)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Report 2: Account Transaction Summary */}
+                  {accountTransactionReport && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">2. Account Transaction Report</CardTitle>
+                        <CardDescription className="text-xs">
+                          {accountTransactionReport.data.length} accounts
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Balance:</span>
+                            <span className="font-semibold">
+                              Rs. {(accountTransactionReport.summary?.total_balance || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Avg Balance:</span>
+                            <span className="font-semibold">
+                              Rs. {(accountTransactionReport.summary?.average_balance || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => CSVExportService.exportAccountTransactionReport(accountTransactionReport.data)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Report 3: Active Fixed Deposits */}
+                  {activeFDReport && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">3. Active Fixed Deposits</CardTitle>
+                        <CardDescription className="text-xs">
+                          {activeFDReport.data.length} active FDs
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Principal:</span>
+                            <span className="font-semibold">
+                              Rs. {(activeFDReport.summary?.total_principal_amount || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Expected Interest:</span>
+                            <span className="font-semibold">
+                              Rs. {(activeFDReport.summary?.total_expected_interest || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Pending Payouts:</span>
+                            <span className="font-semibold">{activeFDReport.summary?.pending_payouts || 0}</span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => CSVExportService.exportActiveFixedDepositsReport(activeFDReport.data)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Report 4: Monthly Interest Distribution */}
+                  {monthlyInterestReport && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">4. Monthly Interest Report</CardTitle>
+                        <CardDescription className="text-xs">
+                          {monthlyInterestReport.data.length} records
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Interest:</span>
+                            <span className="font-semibold">
+                              Rs. {(monthlyInterestReport.summary?.total_interest_paid || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Accounts:</span>
+                            <span className="font-semibold">
+                              {monthlyInterestReport.summary?.total_accounts_with_interest || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => CSVExportService.exportMonthlyInterestReport(monthlyInterestReport.data)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Report 5: Customer Activity */}
+                  {customerActivityReport && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">5. Customer Activity Report</CardTitle>
+                        <CardDescription className="text-xs">
+                          {customerActivityReport.data.length} customers
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Deposits:</span>
+                            <span className="font-semibold text-green-600">
+                              Rs. {(customerActivityReport.summary?.total_deposits || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Withdrawals:</span>
+                            <span className="font-semibold text-red-600">
+                              Rs. {(customerActivityReport.summary?.total_withdrawals || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Net Flow:</span>
+                            <span className="font-semibold">
+                              Rs. {(customerActivityReport.summary?.net_flow || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => CSVExportService.exportCustomerActivityReport(customerActivityReport.data)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Download All Reports */}
+                  <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <FileDown className="h-5 w-5 mr-2 text-blue-600" />
+                        Download All Reports
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Export all {[agentTransactionReport, accountTransactionReport, activeFDReport, monthlyInterestReport, customerActivityReport].filter(r => r).length} reports at once
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <Button
+                          onClick={() => {
+                            if (agentTransactionReport) CSVExportService.exportAgentTransactionReport(agentTransactionReport.data);
+                            if (accountTransactionReport) CSVExportService.exportAccountTransactionReport(accountTransactionReport.data);
+                            if (activeFDReport) CSVExportService.exportActiveFixedDepositsReport(activeFDReport.data);
+                            if (monthlyInterestReport) CSVExportService.exportMonthlyInterestReport(monthlyInterestReport.data);
+                            if (customerActivityReport) CSVExportService.exportCustomerActivityReport(customerActivityReport.data);
+                          }}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                          size="sm"
+                        >
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Download All (CSV)
+                        </Button>
+                        <p className="text-xs text-gray-600 text-center">
+                          Exports {[agentTransactionReport, accountTransactionReport, activeFDReport, monthlyInterestReport, customerActivityReport].filter(r => r).length} separate CSV files
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {!viewsReportLoading && !agentTransactionReport && !accountTransactionReport && !activeFDReport && !monthlyInterestReport && !customerActivityReport && (
+                <div className="text-center py-8">
+                  <FileDown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No detailed reports loaded</p>
+                  <Button onClick={loadAllSystemReports}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Load System Reports
+                  </Button>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Interest Processing */}

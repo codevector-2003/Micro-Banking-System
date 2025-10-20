@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
-import { Bell, Building2, Calendar, DollarSign, Edit, FileText, LogOut, RefreshCw, Search, TrendingDown, TrendingUp, User, UserPlus, Users, X, Save, Filter, Download, Clock, ArrowUpDown } from "lucide-react";
+import { Bell, Building2, Calendar, DollarSign, Edit, FileText, LogOut, RefreshCw, Search, TrendingDown, TrendingUp, User, UserPlus, Users, X, Save, Filter, Download, Clock, ArrowUpDown, FileDown } from "lucide-react";
 import { Progress } from './ui/progress';
 import { Alert, AlertDescription } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -53,6 +53,7 @@ import {
 // Import the detailed account view components
 import { BranchSavingsAccounts } from './BranchSavingsAccounts';
 import { BranchFixedDeposits } from './BranchFixedDeposits';
+import { CSVExportService } from '../services/csvExportService';
 
 export function ManagerDashboard() {
   const { user, logout } = useAuth();
@@ -1442,11 +1443,23 @@ export function ManagerDashboard() {
                   {agentTransactionReport && (
                     <Card>
                       <CardHeader>
-                        <CardTitle>Agent Transaction Summary</CardTitle>
-                        <CardDescription>
-                          Total transactions: {(agentTransactionReport.summary?.total_transactions || 0).toLocaleString()} |
-                          Total value: Rs. {(agentTransactionReport.summary?.total_value || 0).toLocaleString()}
-                        </CardDescription>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle>Agent Transaction Summary</CardTitle>
+                            <CardDescription>
+                              Total transactions: {(agentTransactionReport.summary?.total_transactions || 0).toLocaleString()} |
+                              Total value: Rs. {(agentTransactionReport.summary?.total_value || 0).toLocaleString()}
+                            </CardDescription>
+                          </div>
+                          <Button
+                            onClick={() => CSVExportService.exportAgentTransactionReport(agentTransactionReport.data)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            CSV
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="overflow-x-auto">
@@ -1487,12 +1500,24 @@ export function ManagerDashboard() {
                   {customerActivityReport && (
                     <Card>
                       <CardHeader>
-                        <CardTitle>Customer Activity Report</CardTitle>
-                        <CardDescription>
-                          Net flow: Rs. {(customerActivityReport.summary?.net_flow || 0).toLocaleString()} |
-                          Total deposits: Rs. {(customerActivityReport.summary?.total_deposits || 0).toLocaleString()} |
-                          Total withdrawals: Rs. {(customerActivityReport.summary?.total_withdrawals || 0).toLocaleString()}
-                        </CardDescription>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle>Customer Activity Report</CardTitle>
+                            <CardDescription>
+                              Net flow: Rs. {(customerActivityReport.summary?.net_flow || 0).toLocaleString()} |
+                              Total deposits: Rs. {(customerActivityReport.summary?.total_deposits || 0).toLocaleString()} |
+                              Total withdrawals: Rs. {(customerActivityReport.summary?.total_withdrawals || 0).toLocaleString()}
+                            </CardDescription>
+                          </div>
+                          <Button
+                            onClick={() => CSVExportService.exportCustomerActivityReport(customerActivityReport.data)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            CSV
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="overflow-x-auto">
@@ -1536,12 +1561,24 @@ export function ManagerDashboard() {
                   {activeFDReport && (
                     <Card>
                       <CardHeader>
-                        <CardTitle>Active Fixed Deposits</CardTitle>
-                        <CardDescription>
-                          Total principal: Rs. {(activeFDReport.summary?.total_principal_amount || 0).toLocaleString()} |
-                          Expected interest: Rs. {(activeFDReport.summary?.total_expected_interest || 0).toLocaleString()} |
-                          Pending payouts: {activeFDReport.summary?.pending_payouts || 0}
-                        </CardDescription>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle>Active Fixed Deposits</CardTitle>
+                            <CardDescription>
+                              Total principal: Rs. {(activeFDReport.summary?.total_principal_amount || 0).toLocaleString()} |
+                              Expected interest: Rs. {(activeFDReport.summary?.total_expected_interest || 0).toLocaleString()} |
+                              Pending payouts: {activeFDReport.summary?.pending_payouts || 0}
+                            </CardDescription>
+                          </div>
+                          <Button
+                            onClick={() => CSVExportService.exportActiveFixedDepositsReport(activeFDReport.data)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            CSV
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="overflow-x-auto">
@@ -1595,7 +1632,7 @@ export function ManagerDashboard() {
                               Accounts with interest: {monthlyInterestReport.summary?.total_accounts_with_interest || 0}
                             </CardDescription>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 items-center">
                             <Select value={selectedReportYear.toString()} onValueChange={(val) => setSelectedReportYear(parseInt(val))}>
                               <SelectTrigger className="w-24">
                                 <SelectValue />
@@ -1619,6 +1656,14 @@ export function ManagerDashboard() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            <Button
+                              onClick={() => CSVExportService.exportMonthlyInterestReport(monthlyInterestReport.data)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              CSV
+                            </Button>
                           </div>
                         </div>
                       </CardHeader>
