@@ -2567,207 +2567,486 @@ export function AdminDashboard() {
 
           {/* Interest Processing */}
           <TabsContent value="interest" className="space-y-6">
+            {/* Summary Cards */}
+            {taskStatus && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      Scheduler Status
+                      <Badge variant={taskStatus.scheduler_running ? 'default' : 'secondary'}>
+                        {taskStatus.scheduler_running ? 'Running' : 'Stopped'}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1 text-xs">
+                      <p className="text-gray-600">Current Time</p>
+                      <p className="font-medium">{new Date(taskStatus.current_time).toLocaleString()}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Next Savings Interest</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1 text-xs">
+                      <p className="text-gray-600">Scheduled For</p>
+                      <p className="font-medium">{new Date(taskStatus.next_savings_interest_calculation).toLocaleString()}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Next FD Interest</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1 text-xs">
+                      <p className="text-gray-600">Scheduled For</p>
+                      <p className="font-medium">{new Date(taskStatus.next_fd_interest_calculation).toLocaleString()}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Task Controls</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleStartTasks}
+                        disabled={taskStatus.scheduler_running || loading}
+                        className="flex-1"
+                      >
+                        Start
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleStopTasks}
+                        disabled={!taskStatus.scheduler_running || loading}
+                        className="flex-1"
+                      >
+                        Stop
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Interest Calculation */}
+              {/* Interest Calculation Actions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Interest Calculation</CardTitle>
+                  <CardTitle>Manual Interest Calculation</CardTitle>
                   <CardDescription>
-                    Calculate interest for savings accounts and fixed deposits
+                    Calculate interest manually for savings accounts and fixed deposits
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                  {/* Savings Account Interest */}
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">Savings Account Interest</h4>
+                        <p className="text-sm text-gray-600">
+                          Calculate monthly interest for all eligible savings accounts based on their balance and plan rate
+                        </p>
+                      </div>
+                      <TrendingUp className="h-5 w-5 text-green-600 mt-1" />
+                    </div>
                     <Button
                       onClick={handleCalculateSavingsInterest}
                       disabled={loading}
                       className="w-full"
+                      variant="outline"
                     >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Calculate Savings Account Interest
+                      {loading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Calculating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Calculate Savings Interest
+                        </>
+                      )}
                     </Button>
-                    <p className="text-sm text-gray-600">Calculate monthly interest for all eligible savings accounts</p>
                   </div>
 
-                  <div className="space-y-2">
+                  {/* Fixed Deposit Interest */}
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">Fixed Deposit Interest</h4>
+                        <p className="text-sm text-gray-600">
+                          Calculate interest for fixed deposits that are due for monthly or maturity payments
+                        </p>
+                      </div>
+                      <DollarSign className="h-5 w-5 text-blue-600 mt-1" />
+                    </div>
                     <Button
                       onClick={handleCalculateFDInterest}
                       disabled={loading}
                       className="w-full"
+                      variant="outline"
                     >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Calculate Fixed Deposit Interest
+                      {loading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Calculating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Calculate FD Interest
+                        </>
+                      )}
                     </Button>
-                    <p className="text-sm text-gray-600">Calculate interest for fixed deposits due for payment</p>
                   </div>
 
-                  <div className="space-y-2">
+                  {/* Mature Fixed Deposits */}
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">Mature Fixed Deposits</h4>
+                        <p className="text-sm text-gray-600">
+                          Process all fixed deposits that have reached their maturity date and return principal + interest
+                        </p>
+                      </div>
+                      <TrendingUp className="h-5 w-5 text-purple-600 mt-1" />
+                    </div>
                     <Button
                       onClick={handleMatureFixedDeposits}
                       disabled={loading}
                       className="w-full"
-                      variant="secondary"
+                      variant="outline"
                     >
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Mature Fixed Deposits
+                      {loading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Mature Fixed Deposits
+                        </>
+                      )}
                     </Button>
-                    <p className="text-sm text-gray-600">Process matured fixed deposits and return principal + interest</p>
-                  </div>                  {taskStatus && (
-                    <div className="p-3 bg-blue-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">Automatic Tasks</span>
-                        <Badge variant={taskStatus.scheduler_running ? 'default' : 'secondary'}>
-                          {taskStatus.scheduler_running ? 'Running' : 'Stopped'}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <p>Next Savings: {taskStatus.next_savings_interest_calculation}</p>
-                        <p>Next FD: {taskStatus.next_fd_interest_calculation}</p>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Interest Reports */}
+              {/* Interest Reports Loading */}
               <Card>
                 <CardHeader>
                   <CardTitle>Interest Reports</CardTitle>
                   <CardDescription>
-                    View detailed interest calculation reports
+                    View accounts pending interest payments and potential interest amounts
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                  {/* Savings Interest Report */}
+                  <div className="space-y-3">
                     <Button
                       onClick={handleLoadSavingsInterestReport}
                       disabled={reportLoading}
                       variant="outline"
-                      className="w-full"
+                      className="w-full justify-start"
                     >
                       <BarChart3 className="h-4 w-4 mr-2" />
-                      Load Savings Interest Report
+                      {reportLoading ? 'Loading...' : 'Load Savings Interest Report'}
                     </Button>
+                    
                     {savingsInterestReport && (
-                      <div className="p-3 bg-green-50 rounded-lg text-sm">
-                        <div className="font-medium">Savings Report ({savingsInterestReport.month_year})</div>
-                        <div className="text-gray-600">
-                          <p>Pending Accounts: {savingsInterestReport.total_accounts_pending}</p>
-                          <p>Potential Interest: Rs. {savingsInterestReport.total_potential_interest?.toFixed(2)}</p>
+                      <div className="p-4 bg-green-50 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">Savings Report</h4>
+                          <Badge>{savingsInterestReport.month_year}</Badge>
                         </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-gray-600">Accounts Pending</p>
+                            <p className="text-xl font-bold text-green-700">
+                              {savingsInterestReport.total_accounts_pending}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Potential Interest</p>
+                            <p className="text-xl font-bold text-green-700">
+                              Rs. {savingsInterestReport.total_potential_interest?.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        {savingsInterestReport.accounts && savingsInterestReport.accounts.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full mt-2"
+                            onClick={() => {
+                              const csvContent = [
+                                ['Account ID', 'Plan', 'Balance', 'Interest Rate', 'Potential Interest'].join(','),
+                                ...savingsInterestReport.accounts.map((acc: any) =>
+                                  [
+                                    acc.saving_account_id,
+                                    acc.plan_name,
+                                    acc.balance,
+                                    acc.interest_rate,
+                                    acc.potential_monthly_interest
+                                  ].join(',')
+                                )
+                              ].join('\n');
+                              
+                              const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `savings-interest-report-${savingsInterestReport.month_year}.csv`;
+                              a.click();
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Export CSV
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                  {/* FD Interest Report */}
+                  <div className="space-y-3">
                     <Button
                       onClick={handleLoadFDInterestReport}
                       disabled={reportLoading}
                       variant="outline"
-                      className="w-full"
+                      className="w-full justify-start"
                     >
                       <BarChart3 className="h-4 w-4 mr-2" />
-                      Load FD Interest Report
+                      {reportLoading ? 'Loading...' : 'Load FD Interest Report'}
                     </Button>
+                    
                     {fdInterestReport && (
-                      <div className="p-3 bg-green-50 rounded-lg text-sm">
-                        <div className="font-medium">FD Report</div>
-                        <div className="text-gray-600">
-                          <p>Deposits Due: {fdInterestReport.total_deposits_due}</p>
-                          <p>Potential Interest: Rs. {fdInterestReport.total_potential_interest?.toFixed(2)}</p>
+                      <div className="p-4 bg-blue-50 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">FD Interest Report</h4>
+                          <Badge variant="secondary">Current</Badge>
                         </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-gray-600">Deposits Due</p>
+                            <p className="text-xl font-bold text-blue-700">
+                              {fdInterestReport.total_deposits_due}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Potential Interest</p>
+                            <p className="text-xl font-bold text-blue-700">
+                              Rs. {fdInterestReport.total_potential_interest?.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        {fdInterestReport.deposits && fdInterestReport.deposits.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full mt-2"
+                            onClick={() => {
+                              const csvContent = [
+                                ['FD ID', 'Account ID', 'Principal', 'Interest Rate', 'Days Since Payout', 'Potential Interest'].join(','),
+                                ...fdInterestReport.deposits.map((dep: any) =>
+                                  [
+                                    dep.fixed_deposit_id,
+                                    dep.saving_account_id,
+                                    dep.principal_amount,
+                                    dep.interest_rate,
+                                    dep.days_since_payout,
+                                    dep.potential_interest
+                                  ].join(',')
+                                )
+                              ].join('\n');
+                              
+                              const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `fd-interest-report-${new Date().toISOString().split('T')[0]}.csv`;
+                              a.click();
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Export CSV
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {reportLoading && (
-                    <div className="text-center py-4">
-                      <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
-                      <p className="text-sm text-gray-600">Loading report...</p>
+                    <div className="text-center py-8">
+                      <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Loading interest report...</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Detailed Savings Interest Report */}
-            {savingsInterestReport && savingsInterestReport.accounts && (
+            {/* Detailed Savings Interest Report Table */}
+            {savingsInterestReport && savingsInterestReport.accounts && savingsInterestReport.accounts.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Savings Accounts Pending Interest ({savingsInterestReport.month_year})</CardTitle>
-                  <CardDescription>
-                    Accounts that haven't received interest this month
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Savings Accounts Pending Interest</CardTitle>
+                      <CardDescription>
+                        {savingsInterestReport.month_year} - {savingsInterestReport.accounts.length} accounts pending interest payment
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-lg">
+                      Total: Rs. {savingsInterestReport.total_potential_interest?.toLocaleString()}
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {savingsInterestReport.accounts.slice(0, 10).map((account: any, index: number) => (
-                      <div key={account.saving_account_id || index} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">Account: {account.saving_account_id}</p>
-                            <p className="text-sm text-gray-600">Plan: {account.plan_name}</p>
-                            <p className="text-sm text-gray-600">Rate: {account.interest_rate}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">Balance: Rs. {account.balance?.toFixed(2)}</p>
-                            <p className="text-sm text-green-600">
-                              Interest: Rs. {account.potential_monthly_interest?.toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {savingsInterestReport.accounts.length > 10 && (
-                      <p className="text-sm text-gray-600 text-center">
-                        Showing 10 of {savingsInterestReport.accounts.length} accounts
-                      </p>
-                    )}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-96">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Account ID</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Plan</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">Balance</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-600">Rate</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">Potential Interest</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {savingsInterestReport.accounts.map((account: any, index: number) => (
+                            <tr key={account.saving_account_id || index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-medium">{account.saving_account_id}</td>
+                              <td className="px-4 py-3 text-gray-600">{account.plan_name}</td>
+                              <td className="px-4 py-3 text-right font-medium">
+                                Rs. {account.balance?.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Badge variant="outline">{account.interest_rate}%</Badge>
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-green-600">
+                                Rs. {account.potential_monthly_interest?.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Detailed FD Interest Report */}
-            {fdInterestReport && fdInterestReport.deposits && (
+            {/* Detailed FD Interest Report Table */}
+            {fdInterestReport && fdInterestReport.deposits && fdInterestReport.deposits.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Fixed Deposits Due for Interest</CardTitle>
-                  <CardDescription>
-                    Fixed deposits that are due for interest payment
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Fixed Deposits Due for Interest</CardTitle>
+                      <CardDescription>
+                        {fdInterestReport.deposits.length} fixed deposits are due for interest payment
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-lg">
+                      Total: Rs. {fdInterestReport.total_potential_interest?.toLocaleString()}
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {fdInterestReport.deposits.slice(0, 10).map((deposit: any, index: number) => (
-                      <div key={deposit.fixed_deposit_id || index} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">FD ID: {deposit.fixed_deposit_id}</p>
-                            <p className="text-sm text-gray-600">Account: {deposit.saving_account_id}</p>
-                            <p className="text-sm text-gray-600">
-                              Days since payout: {deposit.days_since_payout} ({deposit.complete_periods} periods)
-                            </p>
-                            <p className="text-sm text-gray-600">Rate: {deposit.interest_rate}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">Principal: Rs. {deposit.principal_amount?.toFixed(2)}</p>
-                            <p className="text-sm text-green-600">
-                              Interest Due: Rs. {deposit.potential_interest?.toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {fdInterestReport.deposits.length > 10 && (
-                      <p className="text-sm text-gray-600 text-center">
-                        Showing 10 of {fdInterestReport.deposits.length} deposits
-                      </p>
-                    )}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-96">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">FD ID</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Account</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">Principal</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-600">Rate</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-600">Days/Periods</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">Interest Due</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {fdInterestReport.deposits.map((deposit: any, index: number) => (
+                            <tr key={deposit.fixed_deposit_id || index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-medium">{deposit.fixed_deposit_id}</td>
+                              <td className="px-4 py-3 text-gray-600">{deposit.saving_account_id}</td>
+                              <td className="px-4 py-3 text-right font-medium">
+                                Rs. {deposit.principal_amount?.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Badge variant="outline">{deposit.interest_rate}%</Badge>
+                              </td>
+                              <td className="px-4 py-3 text-center text-gray-600">
+                                {deposit.days_since_payout} days ({deposit.complete_periods} periods)
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-blue-600">
+                                Rs. {deposit.potential_interest?.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Help Section */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-blue-900">Interest Processing Guide</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-blue-800">
+                <div>
+                  <strong>Automatic Tasks:</strong> When enabled, the system automatically calculates interest monthly at the scheduled times shown above.
+                </div>
+                <div>
+                  <strong>Manual Calculation:</strong> Use the manual calculation buttons to process interest immediately for testing or catch-up purposes.
+                </div>
+                <div>
+                  <strong>Reports:</strong> Load interest reports to see which accounts are pending interest payments and the potential amounts before processing.
+                </div>
+                <div>
+                  <strong>Fixed Deposit Maturity:</strong> The "Mature Fixed Deposits" function processes all FDs that have reached their end date and returns principal + accumulated interest to the linked savings account.
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Connection Test */}
