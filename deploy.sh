@@ -5,7 +5,7 @@
 # -------------------------------
 
 # Go to project directory
-cd /home/vector2003/microbank/Micro-Banking-System || exit
+cd /home/vector/microbank/Micro-Banking-System || exit
 
 # Log start time
 echo "----------------------------"
@@ -22,4 +22,6 @@ docker compose up -d --build
 
 # Log completion
 echo "Deployment completed at $(date)"
+echo "----------------------------"
+echo "All services are up and running."
 echo "----------------------------"
