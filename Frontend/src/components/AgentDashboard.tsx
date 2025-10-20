@@ -1999,7 +1999,7 @@ export function AgentDashboard() {
 
                                   // Focus on the transaction tab after navigation
                                   setTimeout(() => {
-                                    setSelectedTab('transaction');
+                                    setSelectedReportTab('transaction-summary');
                                   }, 100);
                                 }
                               } catch (error) {
@@ -2261,7 +2261,7 @@ export function AgentDashboard() {
                               <CardDescription>
                                 {fd.customer_names && Array.isArray(fd.customer_names)
                                   ? fd.customer_names.join(' & ')
-                                  : fd.customer_name || 'Customer Information Not Available'}
+                                  : 'Customer Information Not Available'}
                               </CardDescription>
                             </div>
                             <Badge variant={fd.status === 'Active' ? 'default' : 'secondary'}>
