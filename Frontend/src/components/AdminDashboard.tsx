@@ -2594,7 +2594,11 @@ export function AdminDashboard() {
                   <CardContent>
                     <div className="space-y-1 text-xs">
                       <p className="text-gray-600">Scheduled For</p>
-                      <p className="font-medium">{new Date(taskStatus.next_savings_interest_calculation).toLocaleString()}</p>
+                      <p className="font-medium">
+                        {taskStatus.next_savings_interest_calculation.includes('AM') || taskStatus.next_savings_interest_calculation.includes('PM') 
+                          ? taskStatus.next_savings_interest_calculation
+                          : new Date(taskStatus.next_savings_interest_calculation).toLocaleString()}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -2606,7 +2610,11 @@ export function AdminDashboard() {
                   <CardContent>
                     <div className="space-y-1 text-xs">
                       <p className="text-gray-600">Scheduled For</p>
-                      <p className="font-medium">{new Date(taskStatus.next_fd_interest_calculation).toLocaleString()}</p>
+                      <p className="font-medium">
+                        {taskStatus.next_fd_interest_calculation.includes('AM') || taskStatus.next_fd_interest_calculation.includes('PM') 
+                          ? taskStatus.next_fd_interest_calculation
+                          : new Date(taskStatus.next_fd_interest_calculation).toLocaleString()}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
