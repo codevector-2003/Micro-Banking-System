@@ -280,6 +280,38 @@ export function ManagerDashboard() {
     }
   };
 
+  // Global Reports state for real-time data
+  const [globalReportsData, setGlobalReportsData] = useState<{
+    branchSummary: {
+      total_customers: number;
+      total_accounts: number;
+      total_balance: number;
+      new_accounts_this_month: number;
+      account_types: { type: string; count: number; balance: number }[];
+    };
+    fdOverview: {
+      total_fds: number;
+      total_principal: number;
+      total_expected_interest: number;
+      pending_payouts: number;
+      maturing_this_month: number;
+      by_duration: { months: number; count: number; principal: number; avg_rate: number }[];
+    };
+    agentPerformance: {
+      total_agents: number;
+      total_transactions: number;
+      total_transaction_value: number;
+      agents: { name: string; transactions: number; value: number; customers: number }[];
+    };
+    monthlyTrends: {
+      total_deposits: number;
+      total_withdrawals: number;
+      net_flow: number;
+      transaction_count: number;
+    };
+  } | null>(null);
+  const [globalReportsLoading, setGlobalReportsLoading] = useState(false);
+
   // Enhanced Report Loading Functions
   const loadBranchOverview = async () => {
     if (!user?.token) return;
@@ -354,6 +386,128 @@ export function ManagerDashboard() {
       setManagerCustomerReport(report);
     } catch (error) {
       console.error('Error loading customer report:', error);
+    }
+  };
+
+  // Load Global Reports Data
+  const loadGlobalReportsData = async () => {
+    if (!user?.token) return;
+
+    try {
+      setGlobalReportsLoading(true);
+      setError('');
+
+      // Fetch all reports in parallel
+      const [accountReport, fdReport, agentReport, customerReport] = await Promise.all([
+        ViewsService.getAccountTransactionReport(user.token),
+        ViewsService.getActiveFixedDeposits(user.token),
+        ViewsService.getAgentTransactionReport(user.token),
+        ViewsService.getCustomerActivityReport(user.token)
+      ]);
+
+      // Process Account Summary by Type (using plan_name)
+      const accountTypesMap = new Map<string, { count: number; balance: number }>();
+      accountReport.data.forEach(account => {
+        const type = account.plan_name || 'Unknown Plan';
+        const existing = accountTypesMap.get(type) || { count: 0, balance: 0 };
+        accountTypesMap.set(type, {
+          count: existing.count + 1,
+          balance: existing.balance + (account.current_balance || 0)
+        });
+      });
+
+      const accountTypes = Array.from(accountTypesMap.entries()).map(([type, data]) => ({
+        type,
+        count: data.count,
+        balance: data.balance
+      })).sort((a, b) => b.balance - a.balance);
+
+      // Process FD Overview by Duration
+      const fdByDurationMap = new Map<number, { count: number; principal: number; totalInterestRate: number }>();
+      fdReport.data.forEach(fd => {
+        const months = fd.plan_months || 0;
+        const existing = fdByDurationMap.get(months) || { count: 0, principal: 0, totalInterestRate: 0 };
+        fdByDurationMap.set(months, {
+          count: existing.count + 1,
+          principal: existing.principal + (fd.principal_amount || 0),
+          totalInterestRate: existing.totalInterestRate + (fd.interest_rate || 0)
+        });
+      });
+
+      const fdByDuration = Array.from(fdByDurationMap.entries()).map(([months, data]) => ({
+        months,
+        count: data.count,
+        principal: data.principal,
+        avg_rate: data.count > 0 ? data.totalInterestRate / data.count : 0
+      })).sort((a, b) => a.months - b.months);
+
+      // Process Agent Performance (top 5 by transaction value)
+      const agentsList = agentReport.data
+        .map(agent => ({
+          name: agent.employee_name || 'Unknown',
+          transactions: agent.total_transactions || 0,
+          value: agent.total_value || 0,
+          customers: 0 // Will be calculated if needed
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+      // Process Monthly Trends
+      const totalDeposits = customerReport.summary?.total_deposits || 0;
+      const totalWithdrawals = customerReport.summary?.total_withdrawals || 0;
+      const netFlow = customerReport.summary?.net_flow || 0;
+
+      // Calculate new accounts this month
+      const now = new Date();
+      const newAccountsThisMonth = accountReport.data.filter(acc => {
+        if (!acc.open_date) return false;
+        const openDate = new Date(acc.open_date);
+        return openDate.getMonth() === now.getMonth() && openDate.getFullYear() === now.getFullYear();
+      }).length;
+
+      // Calculate maturing FDs this month
+      const maturingThisMonth = fdReport.data.filter(fd => {
+        if (!fd.end_date) return false;
+        const endDate = new Date(fd.end_date);
+        return endDate.getMonth() === now.getMonth() && endDate.getFullYear() === now.getFullYear();
+      }).length;
+
+      setGlobalReportsData({
+        branchSummary: {
+          total_customers: customerReport.summary?.total_customers || 0,
+          total_accounts: accountReport.summary?.total_accounts || 0,
+          total_balance: accountReport.summary?.total_balance || 0,
+          new_accounts_this_month: newAccountsThisMonth,
+          account_types: accountTypes
+        },
+        fdOverview: {
+          total_fds: fdReport.summary?.total_fds || 0,
+          total_principal: fdReport.summary?.total_principal_amount || 0,
+          total_expected_interest: fdReport.summary?.total_expected_interest || 0,
+          pending_payouts: fdReport.summary?.pending_payouts || 0,
+          maturing_this_month: maturingThisMonth,
+          by_duration: fdByDuration
+        },
+        agentPerformance: {
+          total_agents: agentReport.summary?.total_agents || 0,
+          total_transactions: agentReport.summary?.total_transactions || 0,
+          total_transaction_value: agentReport.summary?.total_value || 0,
+          agents: agentsList
+        },
+        monthlyTrends: {
+          total_deposits: totalDeposits,
+          total_withdrawals: totalWithdrawals,
+          net_flow: netFlow,
+          transaction_count: accountReport.data.reduce((sum, acc) => sum + (acc.total_transactions || 0), 0)
+        }
+      });
+
+      setSuccess('Global reports loaded successfully');
+    } catch (error) {
+      console.error('Error loading global reports:', error);
+      setError('Failed to load global reports');
+    } finally {
+      setGlobalReportsLoading(false);
     }
   };
 
@@ -660,13 +814,296 @@ export function ManagerDashboard() {
 
           {/* Branch Analytics */}
           <TabsContent value="transactions" className="space-y-6">
+            {/* Global Reports Section */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>Branch Analytics</CardTitle>
+                    <CardTitle>Branch Performance Overview</CardTitle>
+                    <CardDescription>Real-time analytics and insights for your branch</CardDescription>
+                  </div>
+                  <Button
+                    onClick={loadGlobalReportsData}
+                    disabled={globalReportsLoading}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {globalReportsLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh Reports
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {globalReportsLoading && (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto text-gray-400 mb-2" />
+                    <p className="text-gray-500">Loading branch reports...</p>
+                  </div>
+                )}
+
+                {!globalReportsLoading && !globalReportsData && (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-4">No reports loaded yet</p>
+                    <Button onClick={loadGlobalReportsData}>Load Branch Reports</Button>
+                  </div>
+                )}
+
+                {!globalReportsLoading && globalReportsData && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Branch Summary Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center">
+                          <Users className="h-5 w-5 mr-2 text-blue-600" />
+                          Branch Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Total Customers</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              {globalReportsData.branchSummary.total_customers}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Total Accounts</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {globalReportsData.branchSummary.total_accounts}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Total Balance</p>
+                            <p className="text-lg font-bold text-purple-600">
+                              Rs. {globalReportsData.branchSummary.total_balance.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">New This Month</p>
+                            <p className="text-lg font-bold text-orange-600">
+                              {globalReportsData.branchSummary.new_accounts_this_month}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <p className="text-sm font-medium mb-3">Account Distribution</p>
+                          <div className="space-y-2">
+                            {globalReportsData.branchSummary.account_types.map((type, idx) => {
+                              const maxBalance = Math.max(...globalReportsData.branchSummary.account_types.map(t => t.balance));
+                              const percentage = maxBalance > 0 ? (type.balance / maxBalance) * 100 : 0;
+                              return (
+                                <div key={idx}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                    <span className="font-medium">{type.type}</span>
+                                    <span className="text-gray-600">
+                                      {type.count} accounts - Rs. {type.balance.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <Progress value={percentage} className="h-2" />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* FD Overview Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center">
+                          <DollarSign className="h-5 w-5 mr-2 text-green-600" />
+                          Fixed Deposits Overview
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Active FDs</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {globalReportsData.fdOverview.total_fds}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Total Principal</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              Rs. {globalReportsData.fdOverview.total_principal.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Expected Interest</p>
+                            <p className="text-lg font-bold text-purple-600">
+                              Rs. {globalReportsData.fdOverview.total_expected_interest.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Maturing This Month</p>
+                            <p className="text-lg font-bold text-orange-600">
+                              {globalReportsData.fdOverview.maturing_this_month}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <p className="text-sm font-medium mb-3">FDs by Duration</p>
+                          <div className="space-y-2">
+                            {globalReportsData.fdOverview.by_duration.map((fd, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline">{fd.months} months</Badge>
+                                  <span className="text-gray-600">{fd.count} FDs</span>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium">Rs. {fd.principal.toLocaleString()}</p>
+                                  <p className="text-xs text-gray-500">Avg: {fd.avg_rate.toFixed(2)}%</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {globalReportsData.fdOverview.pending_payouts > 0 && (
+                            <div className="mt-3 p-2 bg-yellow-50 rounded text-sm">
+                              <span className="text-yellow-800 font-medium">
+                                ⚠ {globalReportsData.fdOverview.pending_payouts} pending payouts
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Agent Performance Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center">
+                          <TrendingUp className="h-5 w-5 mr-2 text-purple-600" />
+                          Agent Performance
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Active Agents</p>
+                            <p className="text-2xl font-bold text-purple-600">
+                              {globalReportsData.agentPerformance.total_agents}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Total Transactions</p>
+                            <p className="text-xl font-bold text-blue-600">
+                              {globalReportsData.agentPerformance.total_transactions}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Total Value</p>
+                            <p className="text-lg font-bold text-green-600">
+                              Rs. {(globalReportsData.agentPerformance.total_transaction_value / 1000).toFixed(0)}K
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <p className="text-sm font-medium mb-3">Top Performing Agents</p>
+                          <div className="space-y-3">
+                            {globalReportsData.agentPerformance.agents.map((agent, idx) => (
+                              <div key={idx} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-600' : 'bg-blue-500'}>
+                                    #{idx + 1}
+                                  </Badge>
+                                  <span className="font-medium text-sm">{agent.name}</span>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-medium">Rs. {agent.value.toLocaleString()}</p>
+                                  <p className="text-xs text-gray-500">{agent.transactions} txns</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Monthly Trends Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center">
+                          <TrendingDown className="h-5 w-5 mr-2 text-orange-600" />
+                          Monthly Financial Trends
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-green-50 rounded">
+                            <p className="text-sm text-green-700 font-medium">Total Deposits</p>
+                            <p className="text-xl font-bold text-green-600">
+                              Rs. {globalReportsData.monthlyTrends.total_deposits.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-red-50 rounded">
+                            <p className="text-sm text-red-700 font-medium">Total Withdrawals</p>
+                            <p className="text-xl font-bold text-red-600">
+                              Rs. {globalReportsData.monthlyTrends.total_withdrawals.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium">Net Cash Flow</span>
+                            <span className={`text-lg font-bold ${globalReportsData.monthlyTrends.net_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {globalReportsData.monthlyTrends.net_flow >= 0 ? '+' : ''}
+                              Rs. {globalReportsData.monthlyTrends.net_flow.toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress
+                            value={Math.min(100, Math.abs(globalReportsData.monthlyTrends.net_flow / globalReportsData.monthlyTrends.total_deposits * 100))}
+                            className={`h-3 ${globalReportsData.monthlyTrends.net_flow >= 0 ? 'bg-green-200' : 'bg-red-200'}`}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                          <div>
+                            <p className="text-sm text-gray-600">Total Transactions</p>
+                            <p className="text-xl font-bold text-blue-600">
+                              {globalReportsData.monthlyTrends.transaction_count.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Avg Transaction Size</p>
+                            <p className="text-xl font-bold text-purple-600">
+                              Rs. {globalReportsData.monthlyTrends.transaction_count > 0
+                                ? Math.round((globalReportsData.monthlyTrends.total_deposits + globalReportsData.monthlyTrends.total_withdrawals) / globalReportsData.monthlyTrends.transaction_count).toLocaleString()
+                                : 0
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* System Status and Interest Reports */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>System Status & Interest Reports</CardTitle>
                     <CardDescription>
-                      Analytics and insights for your branch
+                      System information and interest calculations
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -747,25 +1184,6 @@ export function ManagerDashboard() {
                       </div>
                     </div>
                   )}
-
-                  {/* Estimated Financial Summary */}
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <h4 className="font-medium mb-3 text-purple-900">Financial Estimates</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-purple-700">Est. Total Deposits</span>
-                        <span className="font-medium text-purple-900">Rs. {branchStats.totalDeposits.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-purple-700">Est. Total Withdrawals</span>
-                        <span className="font-medium text-purple-900">Rs. {branchStats.totalWithdrawals.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between font-medium">
-                        <span className="text-purple-700">Net Growth</span>
-                        <span className="text-purple-900">Rs. {branchStats.netGrowth.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>

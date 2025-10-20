@@ -128,6 +128,87 @@ def get_all_customers(conn=Depends(get_db), current_user=Depends(get_current_use
             status_code=500, detail=f"Database error: {str(e)}")
 
 
+@router.get("/customers/agent/{employee_id}", response_model=list[CustomerRead])
+def get_customers_by_agent(employee_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[CustomerRead]:
+    """
+    Get all customers assigned to a specific agent.
+    - Agents: Can only view their own customers
+    - Branch Managers: Can view customers of agents in their branch
+    - Admins: Can view customers of any agent
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+    
+    # Check user permissions
+    if user_type not in ['admin', 'branch_manager', 'agent']:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to view agent customers")
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Verify the employee exists and is an agent
+            cursor.execute(
+                "SELECT employee_id, type, branch_id FROM employee WHERE employee_id = %s", 
+                (employee_id,)
+            )
+            agent_row = cursor.fetchone()
+            
+            if not agent_row:
+                raise HTTPException(status_code=404, detail="Agent not found")
+            
+            if agent_row['type'] != 'Agent':
+                raise HTTPException(
+                    status_code=400, detail="The specified employee is not an agent")
+            
+            # If agent, they can only view their own customers
+            if user_type == 'agent':
+                if current_user.get('employee_id') != employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="Agents can only view their own customers")
+            
+            # If branch manager, verify the agent is in their branch
+            elif user_type == 'branch_manager':
+                current_employee_id = current_user.get('employee_id')
+                
+                if not current_employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="User is not associated with an employee record")
+                
+                # Get branch_id of the current branch manager
+                cursor.execute(
+                    "SELECT branch_id FROM employee WHERE employee_id = %s", 
+                    (current_employee_id,)
+                )
+                manager_row = cursor.fetchone()
+                
+                if not manager_row or not manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned")
+                
+                # Check if the agent is in the same branch
+                if agent_row['branch_id'] != manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Branch managers can only view customers of agents in their branch")
+            
+            # Get all customers for the specified agent
+            cursor.execute("""
+                SELECT customer_id, name, nic, phone_number, address, 
+                       date_of_birth, email, status, employee_id
+                FROM customer
+                WHERE employee_id = %s
+                ORDER BY name
+            """, (employee_id,))
+            
+            rows = cursor.fetchall()
+            return [CustomerRead(**row) for row in rows]
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
 @router.get("/customers/branch", response_model=list[CustomerRead])
 def get_customers_by_branch(conn=Depends(get_db), current_user=Depends(get_current_user)) -> list[CustomerRead]:
     """
@@ -171,6 +252,111 @@ def get_customers_by_branch(conn=Depends(get_db), current_user=Depends(get_curre
             rows = cursor.fetchall()
             return [CustomerRead(**row) for row in rows]
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/customers/agent/{employee_id}/stats")
+def get_agent_customer_stats(employee_id: str, conn=Depends(get_db), current_user=Depends(get_current_user)):
+    """
+    Get customer statistics for a specific agent.
+    - Agents: Can only view their own statistics
+    - Branch Managers: Can view statistics of agents in their branch
+    - Admins: Can view statistics of any agent
+    """
+    user_type = current_user.get('type', '').lower().replace(' ', '_')
+    
+    # Check user permissions
+    if user_type not in ['admin', 'branch_manager', 'agent']:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to view agent statistics")
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Verify the employee exists and is an agent
+            cursor.execute(
+                "SELECT employee_id, name, type, branch_id FROM employee WHERE employee_id = %s", 
+                (employee_id,)
+            )
+            agent_row = cursor.fetchone()
+            
+            if not agent_row:
+                raise HTTPException(status_code=404, detail="Agent not found")
+            
+            if agent_row['type'] != 'Agent':
+                raise HTTPException(
+                    status_code=400, detail="The specified employee is not an agent")
+            
+            # If agent, they can only view their own statistics
+            if user_type == 'agent':
+                if current_user.get('employee_id') != employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="Agents can only view their own statistics")
+            
+            # If branch manager, verify the agent is in their branch
+            elif user_type == 'branch_manager':
+                current_employee_id = current_user.get('employee_id')
+                
+                if not current_employee_id:
+                    raise HTTPException(
+                        status_code=403, detail="User is not associated with an employee record")
+                
+                # Get branch_id of the current branch manager
+                cursor.execute(
+                    "SELECT branch_id FROM employee WHERE employee_id = %s", 
+                    (current_employee_id,)
+                )
+                manager_row = cursor.fetchone()
+                
+                if not manager_row or not manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=400, detail="Branch manager does not have a branch assigned")
+                
+                # Check if the agent is in the same branch
+                if agent_row['branch_id'] != manager_row['branch_id']:
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Branch managers can only view statistics of agents in their branch")
+            
+            # Get customer statistics for the agent
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_customers,
+                    COUNT(CASE WHEN status = true THEN 1 END) as active_customers,
+                    COUNT(CASE WHEN status = false THEN 1 END) as inactive_customers
+                FROM customer
+                WHERE employee_id = %s
+            """, (employee_id,))
+            
+            stats = cursor.fetchone()
+            
+            # Get account statistics
+            cursor.execute("""
+                SELECT 
+                    COUNT(DISTINCT sa.saving_account_id) as total_accounts,
+                    SUM(sa.balance) as total_balance
+                FROM customer c
+                JOIN accountholder ah ON c.customer_id = ah.customer_id
+                JOIN savingsaccount sa ON ah.saving_account_id = sa.saving_account_id
+                WHERE c.employee_id = %s AND sa.status = true
+            """, (employee_id,))
+            
+            account_stats = cursor.fetchone()
+            
+            return {
+                "employee_id": employee_id,
+                "agent_name": agent_row['name'],
+                "branch_id": agent_row['branch_id'],
+                "total_customers": stats['total_customers'] or 0,
+                "active_customers": stats['active_customers'] or 0,
+                "inactive_customers": stats['inactive_customers'] or 0,
+                "total_accounts": account_stats['total_accounts'] or 0,
+                "total_balance": float(account_stats['total_balance']) if account_stats['total_balance'] else 0.0
+            }
+    
     except HTTPException:
         raise
     except Exception as e:
