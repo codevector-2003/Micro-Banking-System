@@ -339,7 +339,10 @@ export class ReportsService {
     /**
      * Format currency
      */
-    static formatCurrency(amount: number): string {
+    static formatCurrency(amount: number | null): string {
+        if (amount === null || amount === undefined) {
+            return 'LKR 0.00';
+        }
         return `LKR ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 

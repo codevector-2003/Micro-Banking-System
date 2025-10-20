@@ -241,11 +241,17 @@ CREATE OR REPLACE FUNCTION set_customer_id()
 RETURNS TRIGGER AS $$
 DECLARE
     new_id TEXT;
+    max_num INT;
 BEGIN
-    IF NEW.customer_id IS NULL THEN
-        new_id := 'CUST' || LPAD(nextval('customer_seq')::text, 3, '0');
-        NEW.customer_id := new_id;
-    END IF;
+    -- Get the highest existing customer number and add 1
+    SELECT COALESCE(MAX(CAST(TRIM(SUBSTRING(customer_id FROM 5)) AS INT)), 0) + 1 
+    INTO max_num 
+    FROM Customer 
+    WHERE customer_id LIKE 'CUST%';
+    
+    new_id := 'CUST' || LPAD(max_num::text, 3, '0');
+    NEW.customer_id := new_id;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
