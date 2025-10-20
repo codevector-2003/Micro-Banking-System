@@ -227,7 +227,6 @@ export function BranchFixedDeposits({ token, onError }: BranchFixedDepositsProps
                                     <th className="border border-gray-300 px-4 py-2 text-left">Start Date</th>
                                     <th className="border border-gray-300 px-4 py-2 text-left">End Date</th>
                                     <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
-                                    <th className="border border-gray-300 px-4 py-2 text-left">Interest Type</th>
                                     <th className="border border-gray-300 px-4 py-2 text-left">Plan ID</th>
                                     <th className="border border-gray-300 px-4 py-2 text-center">Maturity</th>
                                 </tr>
@@ -271,12 +270,6 @@ export function BranchFixedDeposits({ token, onError }: BranchFixedDepositsProps
                                                             {deposit.status ? 'Active' : 'Inactive'}
                                                         </Badge>
                                                     </div>
-                                                </td>
-                                                <td className="border border-gray-300 px-4 py-2 capitalize">
-                                                    {deposit.interest_payment_type ?
-                                                        String(deposit.interest_payment_type).replace('_', ' ') :
-                                                        'N/A'
-                                                    }
                                                 </td>
                                                 <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
                                                     {deposit.f_plan_id}
@@ -325,7 +318,7 @@ export function BranchFixedDeposits({ token, onError }: BranchFixedDepositsProps
                                 <div>
                                     <span className="font-medium">Filtered Total:</span>
                                     <div className="text-lg font-semibold text-green-600">
-                                        Rs. {filteredDeposits.reduce((sum, dep) => sum + dep.principal_amount, 0).toLocaleString()}
+                                        Rs. {filteredDeposits.reduce((sum, dep) => sum + parseFloat(dep.principal_amount.toString()), 0).toLocaleString()}
                                     </div>
                                 </div>
                                 <div>

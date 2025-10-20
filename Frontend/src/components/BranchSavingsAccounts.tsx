@@ -259,7 +259,7 @@ export function BranchSavingsAccounts({ token, onError }: BranchSavingsAccountsP
                                 <div>
                                     <span className="font-medium">Filtered Total:</span>
                                     <div className="text-lg font-semibold text-blue-600">
-                                        Rs. {filteredAccounts.reduce((sum, acc) => sum + acc.balance, 0).toLocaleString()}
+                                        Rs. {filteredAccounts.reduce((sum, acc) => sum + parseFloat(acc.balance.toString()), 0).toLocaleString()}
                                     </div>
                                 </div>
                                 <div>
