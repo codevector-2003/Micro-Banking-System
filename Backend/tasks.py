@@ -805,6 +805,7 @@ def mature_fixed_deposits(conn=Depends(get_db), current_user=Depends(get_current
 def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depends(get_current_user)):
     """
     Generate a report showing savings accounts that haven't received interest this month.
+    Uses vw_account_summary view for efficient querying.
     """
     user_type = current_user.get("type").lower()
     if user_type not in ["admin", "branch_manager"]:
@@ -817,37 +818,86 @@ def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depen
             current_month = current_date.month
             current_year = current_date.year
 
-            # Get savings accounts that haven't received interest this month
-            cursor.execute(
-                "SELECT * FROM get_accounts_pending_monthly_interest(%s, %s)", (current_month, current_year))
+            # Build query using vw_account_summary view (optimized with fewer joins)
+            base_query = """
+                SELECT 
+                    saving_account_id,
+                    current_balance as balance,
+                    open_date,
+                    interest_rate,
+                    plan_name,
+                    min_balance,
+                    branch_id,
+                    branch_name,
+                    customer_name
+                FROM vw_account_summary
+                WHERE account_status = TRUE 
+                AND current_balance >= min_balance
+                AND NOT EXISTS (
+                    SELECT 1 FROM Transactions t
+                    JOIN AccountHolder ah ON t.holder_id = ah.holder_id
+                    WHERE ah.saving_account_id = vw_account_summary.saving_account_id
+                    AND t.type = 'Interest'
+                    AND t.description LIKE 'Monthly savings account interest%%'
+                    AND EXTRACT(MONTH FROM t.timestamp) = %s
+                    AND EXTRACT(YEAR FROM t.timestamp) = %s
+                )
+            """
+            
+            if user_type == "branch_manager":
+                # Get employee's branch
+                employee_id = current_user.get("employee_id")
+                cursor.execute(
+                    "SELECT branch_id FROM Employee WHERE employee_id = %s", (employee_id,))
+                employee = cursor.fetchone()
+                if not employee:
+                    raise HTTPException(status_code=404, detail="Employee not found")
+                
+                branch_id = employee['branch_id']
+                
+                # Filter by branch for manager
+                query = base_query + " AND branch_id = %s"
+                cursor.execute(query, (current_month, current_year, branch_id))
+            else:
+                # Admin sees all branches
+                cursor.execute(base_query, (current_month, current_year))
 
             pending_accounts = cursor.fetchall()
 
-            # Calculate potential interest for each
+            # Calculate potential interest for each account
             report_data = []
             total_potential_interest = Decimal('0.00')
 
             for account in pending_accounts:
-                # Calculate interest
-                interest_rate_str = account['interest_rate'].replace(
-                    '%', '').strip()
-                annual_interest_rate = Decimal(
-                    interest_rate_str) / Decimal('100')
+                # Convert balance to Decimal for precise calculation
+                balance = Decimal(str(account['balance']))
+                
+                # Parse interest rate - handle both "12" and "12%" formats
+                interest_rate_value = account['interest_rate']
+                if isinstance(interest_rate_value, str):
+                    interest_rate_str = interest_rate_value.replace('%', '').strip()
+                else:
+                    # If it's already a Decimal or number, convert to string
+                    interest_rate_str = str(interest_rate_value)
+                
+                annual_interest_rate = Decimal(interest_rate_str) / Decimal('100')
                 monthly_interest_rate = annual_interest_rate / Decimal('12')
-                potential_interest = account['balance'] * monthly_interest_rate
-
-                # Round to 2 decimal places for currency precision
+                
+                # Calculate monthly interest
+                potential_interest = balance * monthly_interest_rate
                 potential_interest = round_currency(potential_interest)
 
                 total_potential_interest += potential_interest
 
                 report_data.append({
                     "saving_account_id": account['saving_account_id'],
-                    "balance": float(account['balance']),
+                    "balance": float(balance),
                     "plan_name": account['plan_name'],
-                    "interest_rate": account['interest_rate'],
+                    "interest_rate": interest_rate_str + '%',
                     "potential_monthly_interest": float(potential_interest),
-                    "open_date": account['open_date'].isoformat()
+                    "open_date": account['open_date'].isoformat(),
+                    "branch_name": account['branch_name'],
+                    "customer_name": account['customer_name']
                 })
 
             return {
@@ -858,6 +908,8 @@ def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depen
                 "accounts": report_data
             }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
@@ -867,6 +919,8 @@ def get_savings_account_interest_report(conn=Depends(get_db), current_user=Depen
 def get_fixed_deposit_interest_report(conn=Depends(get_db), current_user=Depends(get_current_user)):
     """
     Generate a report showing fixed deposits due for interest payment.
+    For branch managers, only show deposits from their branch.
+    Uses vw_fd_details view for efficient querying.
     """
     user_type = current_user.get("type").lower()
     if user_type not in ["admin", "branch_manager"]:
@@ -876,40 +930,74 @@ def get_fixed_deposit_interest_report(conn=Depends(get_db), current_user=Depends
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             current_date = datetime.now()
-
-            # Get fixed deposits due for interest payment (30+ days since last payout)
-            cursor.execute("""
-                SELECT fd.fixed_deposit_id, fd.saving_account_id, fd.principal_amount, 
-                       fd.start_date, fd.end_date, fd.last_payout_date,
-                       fdp.interest_rate, fdp.months,
-                       EXTRACT(DAYS FROM %s - COALESCE(fd.last_payout_date, fd.start_date)) as days_since_payout
-                FROM FixedDeposit fd
-                JOIN FixedDeposit_Plans fdp ON fd.f_plan_id = fdp.f_plan_id
-                WHERE fd.status = true 
-                AND fd.end_date > %s
-                AND EXTRACT(DAYS FROM %s - COALESCE(fd.last_payout_date, fd.start_date)) >= 30
-                ORDER BY days_since_payout DESC
-            """, (current_date, current_date, current_date))
+            
+            # Build query using the existing vw_fd_details view (optimized with pre-computed joins)
+            base_query = """
+                SELECT 
+                    fixed_deposit_id,
+                    saving_account_id,
+                    principal_amount,
+                    start_date,
+                    end_date,
+                    last_payout_date,
+                    interest_payment_type,
+                    interest_rate,
+                    plan_months,
+                    branch_id,
+                    branch_name,
+                    customer_name,
+                    EXTRACT(DAY FROM %s - COALESCE(last_payout_date, start_date))::int as days_since_payout
+                FROM vw_fd_details
+                WHERE status = TRUE 
+                AND end_date > %s
+                AND EXTRACT(DAY FROM %s - COALESCE(last_payout_date, start_date)) >= 30
+            """
+            
+            if user_type == "branch_manager":
+                # Get employee's branch
+                employee_id = current_user.get("employee_id")
+                cursor.execute(
+                    "SELECT branch_id FROM Employee WHERE employee_id = %s", (employee_id,))
+                employee = cursor.fetchone()
+                if not employee:
+                    raise HTTPException(status_code=404, detail="Employee not found")
+                
+                branch_id = employee['branch_id']
+                
+                # Filter by branch for manager
+                query = base_query + " AND branch_id = %s ORDER BY days_since_payout DESC"
+                cursor.execute(query, (current_date, current_date, current_date, branch_id))
+            else:
+                # Admin sees all branches
+                query = base_query + " ORDER BY days_since_payout DESC"
+                cursor.execute(query, (current_date, current_date, current_date))
 
             due_deposits = cursor.fetchall()
 
-            # Calculate potential interest for each
+            # Calculate potential interest for each deposit
             report_data = []
             total_potential_interest = Decimal('0.00')
 
             for fd in due_deposits:
-                days_since_payout = int(fd['days_since_payout'])
+                days_since_payout = fd['days_since_payout']
                 complete_periods = days_since_payout // 30
 
-                # Calculate interest
-                interest_rate_str = fd['interest_rate'].replace('%', '')
-                annual_interest_rate = Decimal(
-                    interest_rate_str) / Decimal('100')
+                # Convert principal_amount to Decimal for precise calculation
+                principal = Decimal(str(fd['principal_amount']))
+                
+                # Parse interest rate - handle both numeric and string formats
+                interest_rate_value = fd['interest_rate']
+                if isinstance(interest_rate_value, str):
+                    interest_rate_str = interest_rate_value.replace('%', '').strip()
+                else:
+                    # If it's already a Decimal or number, convert to string
+                    interest_rate_str = str(interest_rate_value)
+                
+                annual_interest_rate = Decimal(interest_rate_str) / Decimal('100')
                 monthly_interest_rate = annual_interest_rate / Decimal('12')
-                potential_interest = fd['principal_amount'] * \
-                    monthly_interest_rate * complete_periods
-
-                # Round to 2 decimal places for currency precision
+                
+                # Calculate interest for complete periods
+                potential_interest = principal * monthly_interest_rate * complete_periods
                 potential_interest = round_currency(potential_interest)
 
                 total_potential_interest += potential_interest
@@ -917,12 +1005,14 @@ def get_fixed_deposit_interest_report(conn=Depends(get_db), current_user=Depends
                 report_data.append({
                     "fixed_deposit_id": fd['fixed_deposit_id'],
                     "saving_account_id": fd['saving_account_id'],
-                    "principal_amount": float(fd['principal_amount']),
-                    "interest_rate": fd['interest_rate'],
+                    "principal_amount": float(principal),
+                    "interest_rate": interest_rate_str + '%',
                     "days_since_payout": days_since_payout,
                     "complete_periods": complete_periods,
                     "potential_interest": float(potential_interest),
-                    "last_payout_date": fd['last_payout_date'].isoformat() if fd['last_payout_date'] else fd['start_date'].isoformat()
+                    "last_payout_date": (fd['last_payout_date'] or fd['start_date']).isoformat(),
+                    "branch_name": fd['branch_name'],
+                    "customer_name": fd['customer_name']
                 })
 
             return {
@@ -932,6 +1022,8 @@ def get_fixed_deposit_interest_report(conn=Depends(get_db), current_user=Depends
                 "deposits": report_data
             }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Database error: {str(e)}")
