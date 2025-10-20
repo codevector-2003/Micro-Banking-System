@@ -30,7 +30,7 @@ import {
 import { SavingsPlansService, type SavingsPlan } from '../services/savingsPlansService';
 import {
   AgentReportsService,
-  handleAgentReportsError,
+  type MyTransaction,
   type MyTransactionSummary,
   type MyCustomer,
   type AccountDetailsWithHistory,
@@ -39,6 +39,7 @@ import {
   type CustomerActivitySummary,
   type DateFilter
 } from '../services/agentReportsService';
+import { ReportsService, type MonthlyInterestDistribution, type CustomerActivity } from '../services/reportsService';
 
 export function AgentDashboard() {
   const { user, logout } = useAuth();
@@ -62,11 +63,12 @@ export function AgentDashboard() {
   // Reports state
   const [reportsLoading, setReportsLoading] = useState(false);
   const [myTransactionSummary, setMyTransactionSummary] = useState<MyTransactionSummary | null>(null);
+  const [agentPerformanceData, setAgentPerformanceData] = useState<MyTransaction[]>([]);
   const [myCustomers, setMyCustomers] = useState<MyCustomer[]>([]);
   const [selectedAccountDetails, setSelectedAccountDetails] = useState<AccountDetailsWithHistory | null>(null);
   const [linkedFDs, setLinkedFDs] = useState<LinkedFixedDeposit[]>([]);
-  const [monthlyInterest, setMonthlyInterest] = useState<MonthlyInterestSummary[]>([]);
-  const [customerActivity, setCustomerActivity] = useState<CustomerActivitySummary[]>([]);
+  const [monthlyInterest, setMonthlyInterest] = useState<MonthlyInterestDistribution[]>([]);
+  const [customerActivity, setCustomerActivity] = useState<CustomerActivity[]>([]);
   const [selectedReportTab, setSelectedReportTab] = useState('transaction-summary');
   const [dateFilter, setDateFilter] = useState<DateFilter>({ period: 'this_month' });
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
@@ -188,98 +190,128 @@ export function AgentDashboard() {
 
   // Reports data loading functions
   const loadInitialReportsData = async () => {
-    if (!user?.token) return;
+    // Check if user is properly authenticated before loading reports
+    if (!user?.token) {
+      setError('Please ensure you are logged in to access reports');
+      return;
+    }
 
     setReportsLoading(true);
     try {
       // Load initial data for the first tab (transaction summary)
       await loadMyTransactionSummary();
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load initial reports data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load reports data');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadMyTransactionSummary = async () => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
-      const summary = await AgentReportsService.getMyTransactionSummary(user.token, dateFilter);
-      setMyTransactionSummary(summary);
+      const result = await AgentReportsService.getMyTransactionSummary(user.token, dateFilter);
+      setMyTransactionSummary(result.summary);
+      setAgentPerformanceData(result.agents);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load transaction summary:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load performance data');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadMyCustomers = async () => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
       const customers = await AgentReportsService.getMyCustomers(user.token);
       setMyCustomers(customers);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load customers:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load customer data');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadAccountDetails = async (accountId: string) => {
-    if (!user?.token || !accountId) return;
+    if (!user?.token || !accountId) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
       const details = await AgentReportsService.getAccountDetailsWithHistory(accountId, user.token, dateFilter);
       setSelectedAccountDetails(details);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load account details:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load account details');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadLinkedFixedDeposits = async () => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
       const fds = await AgentReportsService.getLinkedFixedDeposits(user.token);
       setLinkedFDs(fds);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load fixed deposits:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load fixed deposits data');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadMonthlyInterest = async () => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
       const interest = await AgentReportsService.getMonthlyInterestSummary(user.token, selectedMonth);
       setMonthlyInterest(interest);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load monthly interest:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load monthly interest data');
     } finally {
       setReportsLoading(false);
     }
   };
 
   const loadCustomerActivity = async () => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      setError('Authentication required for reports access');
+      return;
+    }
 
     try {
       setReportsLoading(true);
       const activity = await AgentReportsService.getCustomerActivitySummary(user.token, dateFilter);
       setCustomerActivity(activity);
     } catch (error) {
-      setError(handleAgentReportsError(error));
+      console.error('Failed to load customer activity:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load customer activity data');
     } finally {
       setReportsLoading(false);
     }
@@ -338,6 +370,40 @@ export function AgentDashboard() {
       } else if (selectedReportTab === 'customer-activity') {
         await loadCustomerActivity();
       }
+    }
+  };
+
+  const handleRefreshViews = async () => {
+    if (!user?.token) {
+      setError('Authentication required for data refresh');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const result = await ReportsService.refreshMaterializedViews();
+      setSuccess(`Data refreshed successfully! Updated ${result.refreshed_views.length} views.`);
+
+      // Reload current report data after refresh
+      if (selectedReportTab === 'transaction-summary') {
+        await loadMyTransactionSummary();
+      } else if (selectedReportTab === 'my-customers') {
+        await loadMyCustomers();
+      } else if (selectedReportTab === 'linked-fds') {
+        await loadLinkedFixedDeposits();
+      } else if (selectedReportTab === 'monthly-interest') {
+        await loadMonthlyInterest();
+      } else if (selectedReportTab === 'customer-activity') {
+        await loadCustomerActivity();
+      }
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to refresh data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1538,12 +1604,12 @@ export function AgentDashboard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Maturity Date:</span>
-                      <span className="font-medium">{fd.end_date ? new Date(fd.end_date).toLocaleDateString() : 'N/A'}</span>
+                      <span className="font-medium">{fd.maturity_date ? new Date(fd.maturity_date).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     {fd.last_payout_date && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Last Payout:</span>
-                        <span className="font-medium">{new Date(fd.last_payout_date).toLocaleDateString()}</span>
+                        <span className="font-medium">{fd.last_payout_date ? new Date(fd.last_payout_date).toLocaleDateString() : 'Never'}</span>
                       </div>
                     )}
                   </div>
@@ -1611,9 +1677,27 @@ export function AgentDashboard() {
           <h2 className="text-2xl font-semibold">Reports Dashboard</h2>
           <p className="text-gray-600">Comprehensive reports for your assigned customers and transactions</p>
         </div>
-        <Button variant="outline" onClick={() => changeView('home')}>
-          Back to Home
-        </Button>
+        <div className="flex gap-2">
+          {/* Refresh Views button - only for branch managers and admins */}
+          {(user?.role === 'Branch Manager' || user?.role === 'Admin') && (
+            <Button
+              variant="outline"
+              onClick={handleRefreshViews}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <BarChart3 className="h-4 w-4" />
+              )}
+              Refresh Data
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => changeView('home')}>
+            Back to Home
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -1711,6 +1795,17 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
+                            <p className="text-sm text-gray-500">Total Agents</p>
+                            <p className="text-2xl font-bold">{myTransactionSummary.total_agents}</p>
+                          </div>
+                          <Users className="h-8 w-8 text-blue-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
                             <p className="text-sm text-gray-500">Total Transactions</p>
                             <p className="text-2xl font-bold">{myTransactionSummary.total_transactions}</p>
                           </div>
@@ -1722,72 +1817,44 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-gray-500">Total Deposits</p>
+                            <p className="text-sm text-gray-500">Total Transaction Value</p>
                             <p className="text-2xl font-bold text-green-600">
-                              {AgentReportsService.formatCurrency(myTransactionSummary.total_deposits)}
+                              {AgentReportsService.formatCurrency(myTransactionSummary.total_value)}
                             </p>
                           </div>
                           <TrendingUp className="h-8 w-8 text-green-600" />
                         </div>
                       </CardContent>
                     </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-500">Total Withdrawals</p>
-                            <p className="text-2xl font-bold text-red-600">
-                              {AgentReportsService.formatCurrency(myTransactionSummary.total_withdrawals)}
-                            </p>
-                          </div>
-                          <DollarSign className="h-8 w-8 text-red-600" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-500">Net Inflow</p>
-                            <p className={`text-2xl font-bold ${myTransactionSummary.net_inflow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {AgentReportsService.formatCurrency(myTransactionSummary.net_inflow)}
-                            </p>
-                          </div>
-                          <BarChart3 className="h-8 w-8 text-purple-600" />
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
 
-                  {/* Transactions Table */}
+                  {/* Agent Performance Table */}
                   <div className="border rounded-lg">
                     <div className="p-4 border-b bg-gray-50">
-                      <h3 className="font-medium">Recent Transactions</h3>
+                      <h3 className="font-medium">Agent Performance</h3>
                     </div>
                     <div className="divide-y">
-                      {myTransactionSummary.transactions.slice(0, 10).map((txn) => (
-                        <div key={txn.transaction_id} className="p-4 hover:bg-gray-50">
+                      {agentPerformanceData.slice(0, 10).map((agent) => (
+                        <div key={agent.employee_id} className="p-4 hover:bg-gray-50">
                           <div className="flex justify-between items-center">
                             <div className="flex-1">
                               <div className="flex items-center gap-4">
                                 <div>
-                                  <p className="font-medium">{txn.customer_name}</p>
-                                  <p className="text-sm text-gray-500">Account: {txn.account_number}</p>
+                                  <p className="font-medium">{agent.agent_name}</p>
+                                  <p className="text-sm text-gray-500">Branch: {agent.branch_name}</p>
                                 </div>
-                                <Badge variant={txn.transaction_type === 'Deposit' ? 'default' : txn.transaction_type === 'Withdrawal' ? 'destructive' : 'secondary'}>
-                                  {txn.transaction_type}
+                                <Badge variant="default">
+                                  {agent.total_transactions} Transactions
                                 </Badge>
                               </div>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(txn.date_time).toLocaleString()}
-                              </p>
                             </div>
                             <div className="text-right">
-                              <p className={`font-medium ${txn.transaction_type === 'Deposit' ? 'text-green-600' : 'text-red-600'}`}>
-                                {txn.transaction_type === 'Deposit' ? '+' : '-'}
-                                {AgentReportsService.formatCurrency(txn.amount)}
+                              <p className="font-medium text-blue-600">
+                                {AgentReportsService.formatCurrency(agent.total_value)}
                               </p>
-                              <p className="text-xs text-gray-500">Ref: {txn.reference_number}</p>
+                              <p className="text-xs text-gray-500">
+                                Avg: {AgentReportsService.formatCurrency(agent.avg_transaction_value)}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -1835,18 +1902,18 @@ export function AgentDashboard() {
                           <div>
                             <h4 className="font-medium">{customer.customer_name}</h4>
                             <p className="text-sm text-gray-500">ID: {customer.customer_id}</p>
-                            <Badge variant={customer.status === 'Active' ? 'default' : 'secondary'}>
-                              {customer.status}
+                            <Badge variant="default">
+                              Active
                             </Badge>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">Phone: {customer.phone_number}</p>
-                            <p className="text-sm text-gray-600">Email: {customer.email}</p>
-                            <p className="text-sm text-gray-600">Registered: {new Date(customer.registration_date).toLocaleDateString()}</p>
+                            <p className="text-sm text-gray-600">Agent: {customer.agent_name}</p>
+                            <p className="text-sm text-gray-600">Branch: {customer.branch_name}</p>
+                            <p className="text-sm text-gray-600">Registered: {customer.registration_date ? new Date(customer.registration_date).toLocaleDateString() : 'Unknown'}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">Accounts: {customer.linked_accounts}</p>
-                            <p className="text-sm text-gray-600">Total Balance: {AgentReportsService.formatCurrency(customer.total_balance)}</p>
+                            <p className="text-sm text-gray-600">Accounts: {customer.total_accounts}</p>
+                            <p className="text-sm text-gray-600">Total Balance: {AgentReportsService.formatCurrency(customer.current_total_balance)}</p>
                             <p className="text-sm text-gray-600">
                               Last Transaction: {customer.last_transaction_date ? new Date(customer.last_transaction_date).toLocaleDateString() : 'Never'}
                             </p>
@@ -1856,25 +1923,93 @@ export function AgentDashboard() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSelectedCustomer({
-                                customer_id: customer.customer_id,
-                                name: customer.customer_name,
-                                phone_number: customer.phone_number,
-                                email: customer.email,
-                                nic: '',
-                                address: '',
-                                date_of_birth: '',
-                                status: customer.status === 'Active',
-                                employee_id: ''
-                              });
-                              changeView('customer');
+                            onClick={async () => {
+                              try {
+                                setSearchQuery(customer.customer_id);
+                                setSearchType('customer_id');
+                                setLoading(true);
+
+                                // Search for the customer to get complete details
+                                const searchResults = await CustomerService.searchCustomers({ customer_id: customer.customer_id }, user!.token);
+                                if (searchResults.length > 0) {
+                                  const foundCustomer = searchResults[0];
+                                  setSelectedCustomer(foundCustomer);
+
+                                  // Load customer accounts and transactions
+                                  const accounts = await SavingsAccountService.searchSavingsAccounts({ customer_id: foundCustomer.customer_id }, user!.token);
+
+                                  // Get transactions for all customer accounts
+                                  let allTransactions: Transaction[] = [];
+                                  for (const account of accounts) {
+                                    try {
+                                      const transactions = await TransactionService.getTransactionHistory(account.saving_account_id, user!.token);
+                                      allTransactions.push(...transactions);
+                                    } catch (error) {
+                                      console.error(`Failed to load transactions for account ${account.saving_account_id}:`, error);
+                                    }
+                                  }
+
+                                  setSelectedCustomerAccounts(accounts);
+                                  setSelectedCustomerTransactions(allTransactions);
+                                  changeView('customer');
+                                }
+                              } catch (error) {
+                                console.error('Error loading customer details:', error);
+                                setError(handleApiError(error));
+                              } finally {
+                                setLoading(false);
+                              }
                             }}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View Accounts
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setSearchQuery(customer.customer_id);
+                                setSearchType('customer_id');
+                                setLoading(true);
+
+                                // Search for the customer to get complete details
+                                const searchResults = await CustomerService.searchCustomers({ customer_id: customer.customer_id }, user!.token);
+                                if (searchResults.length > 0) {
+                                  const foundCustomer = searchResults[0];
+                                  setSelectedCustomer(foundCustomer);
+
+                                  // Load customer accounts and transactions
+                                  const accounts = await SavingsAccountService.searchSavingsAccounts({ customer_id: foundCustomer.customer_id }, user!.token);
+
+                                  // Get transactions for all customer accounts
+                                  let allTransactions: Transaction[] = [];
+                                  for (const account of accounts) {
+                                    try {
+                                      const transactions = await TransactionService.getTransactionHistory(account.saving_account_id, user!.token);
+                                      allTransactions.push(...transactions);
+                                    } catch (error) {
+                                      console.error(`Failed to load transactions for account ${account.saving_account_id}:`, error);
+                                    }
+                                  }
+
+                                  setSelectedCustomerAccounts(accounts);
+                                  setSelectedCustomerTransactions(allTransactions);
+                                  changeView('customer');
+
+                                  // Focus on the transaction tab after navigation
+                                  setTimeout(() => {
+                                    setSelectedReportTab('transaction-summary');
+                                  }, 100);
+                                }
+                              } catch (error) {
+                                console.error('Error loading customer for transaction:', error);
+                                setError(handleApiError(error));
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                          >
                             <UserPlus className="h-4 w-4 mr-1" />
                             New Transaction
                           </Button>
@@ -1977,63 +2112,56 @@ export function AgentDashboard() {
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Transaction Summary</CardTitle>
+                        <CardTitle className="text-lg">Account Summary</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Total Transactions:</span>
-                          <span className="font-medium">{selectedAccountDetails.summary.total_transactions}</span>
+                          <span className="text-gray-600">Total Accounts:</span>
+                          <span className="font-medium">{selectedAccountDetails.summary.total_accounts}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Total Deposits:</span>
+                          <span className="text-gray-600">Total Balance:</span>
                           <span className="font-medium text-green-600">
-                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_deposits)}
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_balance)}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Total Withdrawals:</span>
-                          <span className="font-medium text-red-600">
-                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_withdrawals)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Net Change:</span>
-                          <span className={`font-medium ${(selectedAccountDetails.summary.total_deposits - selectedAccountDetails.summary.total_withdrawals) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.total_deposits - selectedAccountDetails.summary.total_withdrawals)}
+                          <span className="text-gray-600">Average Balance:</span>
+                          <span className="font-medium text-blue-600">
+                            {AgentReportsService.formatCurrency(selectedAccountDetails.summary.average_balance)}
                           </span>
                         </div>
                       </CardContent>
                     </Card>
                   </div>
 
-                  {/* Transaction History */}
+                  {/* Account List */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Transaction History</CardTitle>
+                      <CardTitle>Account Details</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="divide-y">
-                        {selectedAccountDetails.transactions.map((txn) => (
-                          <div key={txn.transaction_id} className="py-3">
+                        {selectedAccountDetails.transactions.map((account) => (
+                          <div key={account.saving_account_id} className="py-3">
                             <div className="flex justify-between items-center">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <Badge variant={txn.transaction_type === 'Deposit' ? 'default' : txn.transaction_type === 'Withdrawal' ? 'destructive' : 'secondary'}>
-                                    {txn.transaction_type}
+                                  <Badge variant="default">
+                                    {account.plan_name}
                                   </Badge>
-                                  <span className="font-medium">{txn.description}</span>
+                                  <span className="font-medium">{account.customer_name}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  {new Date(txn.date_time).toLocaleString()} • Ref: {txn.reference_number}
+                                  Account: {account.saving_account_id} • Opened: {account.open_date ? new Date(account.open_date).toLocaleDateString() : 'Unknown'}
                                 </p>
                               </div>
                               <div className="text-right">
-                                <p className={`font-medium ${txn.transaction_type === 'Deposit' || txn.transaction_type === 'Interest' ? 'text-green-600' : 'text-red-600'}`}>
-                                  {txn.transaction_type === 'Deposit' || txn.transaction_type === 'Interest' ? '+' : '-'}
-                                  {AgentReportsService.formatCurrency(txn.amount)}
+                                <p className="font-medium text-green-600">
+                                  {AgentReportsService.formatCurrency(account.current_balance)}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  Balance: {AgentReportsService.formatCurrency(txn.balance_after)}
+                                  {account.transaction_count} transactions
                                 </p>
                               </div>
                             </div>
@@ -2090,7 +2218,7 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
-                            {linkedFDs.filter(fd => fd.status === 'Active').length}
+                            {linkedFDs.filter(fd => fd.status === 'Active' || fd.fd_status === 'Active').length}
                           </p>
                           <p className="text-sm text-gray-500">Active FDs</p>
                         </div>
@@ -2113,10 +2241,10 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-orange-600">
                             {AgentReportsService.formatCurrency(
-                              linkedFDs.reduce((sum, fd) => sum + fd.total_interest_credited, 0)
+                              linkedFDs.reduce((sum, fd) => sum + (fd.total_interest_credited || fd.total_interest || 0), 0)
                             )}
                           </p>
-                          <p className="text-sm text-gray-500">Interest Credited</p>
+                          <p className="text-sm text-gray-500">Interest To Be Credited</p>
                         </div>
                       </CardContent>
                     </Card>
@@ -2131,7 +2259,9 @@ export function AgentDashboard() {
                             <div>
                               <CardTitle className="text-lg">FD #{fd.fd_id}</CardTitle>
                               <CardDescription>
-                                {fd.customer_names.join(' & ')}
+                                {fd.customer_names && Array.isArray(fd.customer_names)
+                                  ? fd.customer_names.join(' & ')
+                                  : 'Customer Information Not Available'}
                               </CardDescription>
                             </div>
                             <Badge variant={fd.status === 'Active' ? 'default' : 'secondary'}>
@@ -2161,11 +2291,16 @@ export function AgentDashboard() {
                             </div>
                             <div>
                               <p className="text-gray-600">Start Date:</p>
-                              <p className="font-medium">{new Date(fd.start_date).toLocaleDateString()}</p>
+                              <p className="font-medium">{fd.start_date ? new Date(fd.start_date).toLocaleDateString() : 'Unknown'}</p>
                             </div>
                             <div>
                               <p className="text-gray-600">Maturity Date:</p>
-                              <p className="font-medium">{new Date(fd.maturity_date).toLocaleDateString()}</p>
+                              <p className="font-medium">
+                                {fd.maturity_date
+                                  ? new Date(fd.maturity_date).toLocaleDateString()
+                                  : 'Date not available'
+                                }
+                              </p>
                             </div>
                           </div>
 
@@ -2178,9 +2313,9 @@ export function AgentDashboard() {
                                 </p>
                               </div>
                               <div>
-                                <p className="text-gray-600">Interest Credited:</p>
+                                <p className="text-gray-600">Total Interest:</p>
                                 <p className="font-medium text-green-600">
-                                  {AgentReportsService.formatCurrency(fd.total_interest_credited)}
+                                  {AgentReportsService.formatCurrency(fd.total_interest_credited || fd.total_interest || 0)}
                                 </p>
                               </div>
                             </div>
@@ -2254,7 +2389,7 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
-                            {monthlyInterest.reduce((sum, item) => sum + item.accounts_credited, 0)}
+                            {monthlyInterest.reduce((sum, item) => sum + item.account_count, 0)}
                           </p>
                           <p className="text-sm text-gray-500">Accounts Credited</p>
                         </div>
@@ -2265,7 +2400,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
                             {AgentReportsService.formatCurrency(
-                              monthlyInterest.reduce((sum, item) => sum + item.total_interest_credited, 0)
+                              monthlyInterest.reduce((sum, item) => sum + item.total_interest_paid, 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Interest</p>
@@ -2290,7 +2425,7 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="text-center">
                           <p className="text-2xl font-bold text-purple-600">
-                            {new Set(monthlyInterest.map(item => item.account_type)).size}
+                            {new Set(monthlyInterest.map(item => item.plan_name)).size}
                           </p>
                           <p className="text-sm text-gray-500">Account Types</p>
                         </div>
@@ -2300,15 +2435,15 @@ export function AgentDashboard() {
 
                   {/* Interest Details by Account Type */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {Array.from(new Set(monthlyInterest.map(item => item.account_type))).map((accountType) => {
-                      const typeData = monthlyInterest.filter(item => item.account_type === accountType);
-                      const totalInterest = typeData.reduce((sum, item) => sum + item.total_interest_credited, 0);
-                      const totalAccounts = typeData.reduce((sum, item) => sum + item.accounts_credited, 0);
+                    {Array.from(new Set(monthlyInterest.map(item => item.plan_name))).map((planName) => {
+                      const typeData = monthlyInterest.filter(item => item.plan_name === planName);
+                      const totalInterest = typeData.reduce((sum, item) => sum + item.total_interest_paid, 0);
+                      const totalAccounts = typeData.reduce((sum, item) => sum + item.account_count, 0);
 
                       return (
-                        <Card key={accountType}>
+                        <Card key={planName}>
                           <CardHeader>
-                            <CardTitle className="text-lg">{accountType}</CardTitle>
+                            <CardTitle className="text-lg">{planName}</CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
                             <div className="flex justify-between">
@@ -2329,7 +2464,7 @@ export function AgentDashboard() {
                             </div>
                             <div className="pt-2 border-t">
                               <p className="text-xs text-gray-500">
-                                Last Credit: {typeData[0]?.credit_batch_date ? new Date(typeData[0].credit_batch_date).toLocaleDateString() : 'N/A'}
+                                Last Credit: {typeData[0]?.month ? `${typeData[0].month} ${typeData[0].year}` : 'N/A'}
                               </p>
                             </div>
                           </CardContent>
@@ -2349,17 +2484,17 @@ export function AgentDashboard() {
                           <div key={index} className="py-4">
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                               <div>
-                                <p className="font-medium text-gray-900">{item.account_type}</p>
-                                <p className="text-sm text-gray-500">{item.month_year}</p>
+                                <p className="font-medium text-gray-900">{item.plan_name}</p>
+                                <p className="text-sm text-gray-500">{item.month} {item.year}</p>
                               </div>
                               <div className="text-center">
                                 <p className="text-sm text-gray-600">Accounts</p>
-                                <p className="font-medium text-lg">{item.accounts_credited}</p>
+                                <p className="font-medium text-lg">{item.account_count}</p>
                               </div>
                               <div className="text-center">
                                 <p className="text-sm text-gray-600">Total Interest</p>
                                 <p className="font-medium text-lg text-green-600">
-                                  {AgentReportsService.formatCurrency(item.total_interest_credited)}
+                                  {AgentReportsService.formatCurrency(item.total_interest_paid)}
                                 </p>
                               </div>
                               <div className="text-center">
@@ -2369,8 +2504,8 @@ export function AgentDashboard() {
                                 </p>
                               </div>
                               <div className="text-center">
-                                <p className="text-sm text-gray-600">Credit Date</p>
-                                <p className="font-medium">{new Date(item.credit_batch_date).toLocaleDateString()}</p>
+                                <p className="text-sm text-gray-600">Period</p>
+                                <p className="font-medium">{item.month} {item.year}</p>
                               </div>
                             </div>
                           </div>
@@ -2508,10 +2643,10 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-indigo-600">
                             {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + cust.fd_total_value, 0)
+                              customerActivity.reduce((sum, cust) => sum + cust.current_total_balance, 0)
                             )}
                           </p>
-                          <p className="text-sm text-gray-500">FD Value</p>
+                          <p className="text-sm text-gray-500">Total Balance</p>
                         </div>
                       </CardContent>
                     </Card>
@@ -2552,37 +2687,22 @@ export function AgentDashboard() {
                                 </p>
                               </div>
                               <div className="text-center">
-                                <p className="text-sm text-gray-600">Net Balance</p>
-                                <p className={`font-medium ${customer.net_balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {AgentReportsService.formatCurrency(customer.net_balance)}
+                                <p className="text-sm text-gray-600">Net Change</p>
+                                <p className={`font-medium ${customer.net_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {AgentReportsService.formatCurrency(customer.net_change)}
                                 </p>
                               </div>
                               <div className="text-center">
                                 <p className="text-sm text-gray-600">Active FDs</p>
                                 <p className="font-medium text-purple-600">{customer.active_fd_count}</p>
-                                {customer.fd_total_value > 0 && (
-                                  <p className="text-xs text-gray-500">
-                                    {AgentReportsService.formatCurrency(customer.fd_total_value)}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Last Activity</p>
-                                <p className="font-medium">{new Date(customer.last_activity_date).toLocaleDateString()}</p>
+                                <p className="text-xs text-gray-500">Fixed Deposits</p>
                               </div>
                               <div>
-                                <p className="text-sm text-gray-600">Account Types</p>
+                                <p className="text-sm text-gray-600">Account Count</p>
                                 <div className="flex flex-wrap gap-1 mt-1">
-                                  {customer.account_types.slice(0, 2).map((type, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {type.replace(' Account', '')}
-                                    </Badge>
-                                  ))}
-                                  {customer.account_types.length > 2 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      +{customer.account_types.length - 2}
-                                    </Badge>
-                                  )}
+                                  <Badge variant="outline" className="text-xs">
+                                    {customer.total_accounts} Account{customer.total_accounts !== 1 ? 's' : ''}
+                                  </Badge>
                                 </div>
                               </div>
                             </div>
