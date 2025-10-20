@@ -197,7 +197,15 @@ export class AgentReportsService {
     static async getLinkedFixedDeposits(token: string): Promise<LinkedFixedDeposit[]> {
         try {
             const response = await ReportsService.getActiveFixedDeposits(token);
-            return response.data;
+            // Map the API response to match the expected interface
+            return response.data.map((fd: any) => ({
+                ...fd,
+                customer_names: fd.customer_name ? [fd.customer_name] : [],
+                fd_id: fd.fixed_deposit_id,
+                maturity_date: fd.end_date,
+                status: fd.fd_status || 'Active',
+                total_interest_credited: fd.total_interest || 0
+            }));
         } catch (error) {
             console.error('Error loading fixed deposits:', error);
             throw new Error(error instanceof Error ? error.message : 'Failed to load fixed deposits');

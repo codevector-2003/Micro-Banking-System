@@ -1604,12 +1604,12 @@ export function AgentDashboard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Maturity Date:</span>
-                      <span className="font-medium">{fd.end_date ? new Date(fd.end_date).toLocaleDateString() : 'N/A'}</span>
+                      <span className="font-medium">{fd.maturity_date ? new Date(fd.maturity_date).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     {fd.last_payout_date && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Last Payout:</span>
-                        <span className="font-medium">{new Date(fd.last_payout_date).toLocaleDateString()}</span>
+                        <span className="font-medium">{fd.last_payout_date ? new Date(fd.last_payout_date).toLocaleDateString() : 'Never'}</span>
                       </div>
                     )}
                   </div>
@@ -1847,9 +1847,6 @@ export function AgentDashboard() {
                                   {agent.total_transactions} Transactions
                                 </Badge>
                               </div>
-                              <p className="text-xs text-gray-400 mt-1">
-                                Last Transaction: {new Date(agent.last_transaction_date).toLocaleDateString()}
-                              </p>
                             </div>
                             <div className="text-right">
                               <p className="font-medium text-blue-600">
@@ -1912,7 +1909,7 @@ export function AgentDashboard() {
                           <div>
                             <p className="text-sm text-gray-600">Agent: {customer.agent_name}</p>
                             <p className="text-sm text-gray-600">Branch: {customer.branch_name}</p>
-                            <p className="text-sm text-gray-600">Registered: {new Date(customer.registration_date).toLocaleDateString()}</p>
+                            <p className="text-sm text-gray-600">Registered: {customer.registration_date ? new Date(customer.registration_date).toLocaleDateString() : 'Unknown'}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-600">Accounts: {customer.total_accounts}</p>
@@ -1926,25 +1923,93 @@ export function AgentDashboard() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSelectedCustomer({
-                                customer_id: customer.customer_id,
-                                name: customer.customer_name,
-                                phone_number: '',
-                                email: '',
-                                nic: '',
-                                address: '',
-                                date_of_birth: '',
-                                status: true,
-                                employee_id: ''
-                              });
-                              changeView('customer');
+                            onClick={async () => {
+                              try {
+                                setSearchQuery(customer.customer_id);
+                                setSearchType('customer_id');
+                                setLoading(true);
+
+                                // Search for the customer to get complete details
+                                const searchResults = await CustomerService.searchCustomers({ customer_id: customer.customer_id }, user!.token);
+                                if (searchResults.length > 0) {
+                                  const foundCustomer = searchResults[0];
+                                  setSelectedCustomer(foundCustomer);
+
+                                  // Load customer accounts and transactions
+                                  const accounts = await SavingsAccountService.searchSavingsAccounts({ customer_id: foundCustomer.customer_id }, user!.token);
+
+                                  // Get transactions for all customer accounts
+                                  let allTransactions: Transaction[] = [];
+                                  for (const account of accounts) {
+                                    try {
+                                      const transactions = await TransactionService.getTransactionHistory(account.saving_account_id, user!.token);
+                                      allTransactions.push(...transactions);
+                                    } catch (error) {
+                                      console.error(`Failed to load transactions for account ${account.saving_account_id}:`, error);
+                                    }
+                                  }
+
+                                  setSelectedCustomerAccounts(accounts);
+                                  setSelectedCustomerTransactions(allTransactions);
+                                  changeView('customer');
+                                }
+                              } catch (error) {
+                                console.error('Error loading customer details:', error);
+                                setError(handleApiError(error));
+                              } finally {
+                                setLoading(false);
+                              }
                             }}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View Accounts
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setSearchQuery(customer.customer_id);
+                                setSearchType('customer_id');
+                                setLoading(true);
+
+                                // Search for the customer to get complete details
+                                const searchResults = await CustomerService.searchCustomers({ customer_id: customer.customer_id }, user!.token);
+                                if (searchResults.length > 0) {
+                                  const foundCustomer = searchResults[0];
+                                  setSelectedCustomer(foundCustomer);
+
+                                  // Load customer accounts and transactions
+                                  const accounts = await SavingsAccountService.searchSavingsAccounts({ customer_id: foundCustomer.customer_id }, user!.token);
+
+                                  // Get transactions for all customer accounts
+                                  let allTransactions: Transaction[] = [];
+                                  for (const account of accounts) {
+                                    try {
+                                      const transactions = await TransactionService.getTransactionHistory(account.saving_account_id, user!.token);
+                                      allTransactions.push(...transactions);
+                                    } catch (error) {
+                                      console.error(`Failed to load transactions for account ${account.saving_account_id}:`, error);
+                                    }
+                                  }
+
+                                  setSelectedCustomerAccounts(accounts);
+                                  setSelectedCustomerTransactions(allTransactions);
+                                  changeView('customer');
+
+                                  // Focus on the transaction tab after navigation
+                                  setTimeout(() => {
+                                    setSelectedTab('transaction');
+                                  }, 100);
+                                }
+                              } catch (error) {
+                                console.error('Error loading customer for transaction:', error);
+                                setError(handleApiError(error));
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                          >
                             <UserPlus className="h-4 w-4 mr-1" />
                             New Transaction
                           </Button>
@@ -2088,7 +2153,7 @@ export function AgentDashboard() {
                                   <span className="font-medium">{account.customer_name}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Account: {account.saving_account_id} • Opened: {new Date(account.open_date).toLocaleDateString()}
+                                  Account: {account.saving_account_id} • Opened: {account.open_date ? new Date(account.open_date).toLocaleDateString() : 'Unknown'}
                                 </p>
                               </div>
                               <div className="text-right">
@@ -2153,7 +2218,7 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
-                            {linkedFDs.filter(fd => fd.status === 'Active').length}
+                            {linkedFDs.filter(fd => fd.status === 'Active' || fd.fd_status === 'Active').length}
                           </p>
                           <p className="text-sm text-gray-500">Active FDs</p>
                         </div>
@@ -2176,10 +2241,10 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-orange-600">
                             {AgentReportsService.formatCurrency(
-                              linkedFDs.reduce((sum, fd) => sum + fd.total_interest_credited, 0)
+                              linkedFDs.reduce((sum, fd) => sum + (fd.total_interest_credited || fd.total_interest || 0), 0)
                             )}
                           </p>
-                          <p className="text-sm text-gray-500">Interest Credited</p>
+                          <p className="text-sm text-gray-500">Interest To Be Credited</p>
                         </div>
                       </CardContent>
                     </Card>
@@ -2194,7 +2259,9 @@ export function AgentDashboard() {
                             <div>
                               <CardTitle className="text-lg">FD #{fd.fd_id}</CardTitle>
                               <CardDescription>
-                                {fd.customer_names.join(' & ')}
+                                {fd.customer_names && Array.isArray(fd.customer_names)
+                                  ? fd.customer_names.join(' & ')
+                                  : fd.customer_name || 'Customer Information Not Available'}
                               </CardDescription>
                             </div>
                             <Badge variant={fd.status === 'Active' ? 'default' : 'secondary'}>
@@ -2224,11 +2291,16 @@ export function AgentDashboard() {
                             </div>
                             <div>
                               <p className="text-gray-600">Start Date:</p>
-                              <p className="font-medium">{new Date(fd.start_date).toLocaleDateString()}</p>
+                              <p className="font-medium">{fd.start_date ? new Date(fd.start_date).toLocaleDateString() : 'Unknown'}</p>
                             </div>
                             <div>
                               <p className="text-gray-600">Maturity Date:</p>
-                              <p className="font-medium">{new Date(fd.maturity_date).toLocaleDateString()}</p>
+                              <p className="font-medium">
+                                {fd.maturity_date
+                                  ? new Date(fd.maturity_date).toLocaleDateString()
+                                  : 'Date not available'
+                                }
+                              </p>
                             </div>
                           </div>
 
@@ -2241,9 +2313,9 @@ export function AgentDashboard() {
                                 </p>
                               </div>
                               <div>
-                                <p className="text-gray-600">Interest Credited:</p>
+                                <p className="text-gray-600">Total Interest:</p>
                                 <p className="font-medium text-green-600">
-                                  {AgentReportsService.formatCurrency(fd.total_interest_credited)}
+                                  {AgentReportsService.formatCurrency(fd.total_interest_credited || fd.total_interest || 0)}
                                 </p>
                               </div>
                             </div>
@@ -2624,10 +2696,6 @@ export function AgentDashboard() {
                                 <p className="text-sm text-gray-600">Active FDs</p>
                                 <p className="font-medium text-purple-600">{customer.active_fd_count}</p>
                                 <p className="text-xs text-gray-500">Fixed Deposits</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Last Activity</p>
-                                <p className="font-medium">{new Date(customer.last_transaction_date).toLocaleDateString()}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Account Count</p>
