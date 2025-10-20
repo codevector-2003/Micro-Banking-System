@@ -112,7 +112,7 @@ export interface ActiveFixedDepositDetail {
 
 export interface ActiveFixedDepositReport {
     summary: {
-        total_active_fds: number;
+        total_fds: number;
         total_principal_amount: number;
         total_expected_interest: number;
         pending_payouts: number;
@@ -619,7 +619,7 @@ export class ManagerReportsService {
 
             return {
                 summary: {
-                    total_active_fds: report.summary?.total_fds || 0,
+                    total_fds: report.summary?.total_fds || 0,
                     total_principal_amount: report.summary?.total_principal_amount || 0,
                     total_expected_interest: report.summary?.total_expected_interest || 0,
                     pending_payouts: report.summary?.pending_payouts || 0,
@@ -677,7 +677,7 @@ export class ManagerReportsService {
 
             return {
                 summary: {
-                    total_active_fds: mockFDs.length,
+                    total_fds: mockFDs.length,
                     total_principal_amount: mockFDs.reduce((sum, fd) => sum + fd.principal_amount, 0),
                     total_expected_interest: mockFDs.reduce((sum, fd) => sum + (fd.expected_maturity_amount - fd.principal_amount), 0),
                     pending_payouts: mockFDs.filter(fd => new Date(fd.next_interest_payout_date) <= new Date()).length,

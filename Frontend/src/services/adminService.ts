@@ -458,7 +458,7 @@ export class FDPlansService {
 // Customer Service (for Admin use)
 export class CustomerService {
     static async getAllCustomers(token: string): Promise<any[]> {
-        const response = await fetch(buildApiUrl('/customers/'), {
+        const response = await fetch(buildApiUrl('/customers/customers/'), {
             method: 'GET',
             headers: getAuthHeaders(token),
         });
@@ -477,7 +477,7 @@ export class CustomerService {
         nic?: string;
         phone_number?: string;
     }, token: string): Promise<any[]> {
-        const response = await fetch(buildApiUrl('/customer/search'), {
+        const response = await fetch(buildApiUrl('/customers/customer/search'), {
             method: 'POST',
             headers: getAuthHeaders(token),
             body: JSON.stringify(searchQuery),
@@ -492,7 +492,7 @@ export class CustomerService {
     }
 
     static async updateCustomer(customerId: string, updates: any, token: string): Promise<any> {
-        const response = await fetch(buildApiUrl('/customer/update'), {
+        const response = await fetch(buildApiUrl('/customers/customer/update'), {
             method: 'PUT',
             headers: getAuthHeaders(token),
             body: JSON.stringify({ customer_id: customerId, ...updates }),
@@ -523,7 +523,7 @@ export class SystemStatsService {
                 BranchService.getAllBranches(token),
                 EmployeeService.getAllEmployees(token),
                 // Get all customers (admin can see all)
-                fetch(buildApiUrl('/customers/'), {
+                fetch(buildApiUrl('/customers/customers/'), {
                     headers: getAuthHeaders(token)
                 }).then(res => res.ok ? res.json() : []),
                 // Get agent transaction report for total transaction values
@@ -533,7 +533,7 @@ export class SystemStatsService {
                 // Get active fixed deposits
                 fetch(buildApiUrl('/views/report/active-fixed-deposits'), {
                     headers: getAuthHeaders(token)
-                }).then(res => res.ok ? res.json() : { data: [], summary: { total_active_fds: 0, total_principal: 0 } }),
+                }).then(res => res.ok ? res.json() : { data: [], summary: { total_fds: 0, total_principal_amount: 0 } }),
                 // Get monthly interest distribution for interest payout
                 fetch(buildApiUrl('/views/report/monthly-interest-distribution'), {
                     headers: getAuthHeaders(token)
@@ -542,9 +542,9 @@ export class SystemStatsService {
 
             // Calculate totals from the data
             const totalCustomers = Array.isArray(customers) ? customers.length : 0;
-            const totalDeposits = activeFDs?.summary?.total_principal || 0;
+            const totalDeposits = activeFDs?.summary?.total_principal_amount || 0;
             const monthlyInterestPayout = monthlyInterest?.summary?.total_interest || 0;
-            const activeFDsCount = activeFDs?.summary?.total_active_fds || activeFDs?.data?.length || 0;
+            const activeFDsCount = activeFDs?.summary?.total_fds || activeFDs?.data?.length || 0;
 
             return {
                 totalBranches: branches.length,
@@ -574,7 +574,7 @@ export class SystemStatsService {
 
     static async getCustomerCount(token: string): Promise<number> {
         try {
-            const response = await fetch(buildApiUrl('/customers/'), {
+            const response = await fetch(buildApiUrl('/customers/customers/'), {
                 headers: getAuthHeaders(token)
             });
 
@@ -602,7 +602,7 @@ export class SystemStatsService {
             }
 
             const activeFDs = await activeFDsResponse.json();
-            const totalFDs = activeFDs?.summary?.total_principal || 0;
+            const totalFDs = activeFDs?.summary?.total_principal_amount || 0;
 
             // For savings accounts, we'll need to calculate from account transactions or estimate
             // For now, we'll use the FD total as the main metric
