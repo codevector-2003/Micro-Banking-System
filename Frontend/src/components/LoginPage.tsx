@@ -102,14 +102,6 @@ export function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded text-sm">
-            <p className="text-gray-600 mb-2">Backend Connection:</p>
-            <p className="text-xs">API Base URL: http://localhost:8000</p>
-            <p className="text-xs text-gray-500 mt-2">
-              Make sure the backend server is running on port 8000
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
