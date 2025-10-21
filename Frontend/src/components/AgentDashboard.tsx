@@ -39,7 +39,7 @@ import {
   type CustomerActivitySummary,
   type DateFilter
 } from '../services/agentReportsService';
-import { ReportsService, type MonthlyInterestDistribution, type CustomerActivity } from '../services/reportsService';
+import { ReportsService, type MonthlyInterestDistribution } from '../services/reportsService';
 
 export function AgentDashboard() {
   const { user, logout } = useAuth();
@@ -68,7 +68,7 @@ export function AgentDashboard() {
   const [selectedAccountDetails, setSelectedAccountDetails] = useState<AccountDetailsWithHistory | null>(null);
   const [linkedFDs, setLinkedFDs] = useState<LinkedFixedDeposit[]>([]);
   const [monthlyInterest, setMonthlyInterest] = useState<MonthlyInterestDistribution[]>([]);
-  const [customerActivity, setCustomerActivity] = useState<CustomerActivity[]>([]);
+
   const [selectedReportTab, setSelectedReportTab] = useState('transaction-summary');
   const [dateFilter, setDateFilter] = useState<DateFilter>({ period: 'this_month' });
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
@@ -305,23 +305,7 @@ export function AgentDashboard() {
     }
   };
 
-  const loadCustomerActivity = async () => {
-    if (!user?.token) {
-      setError('Authentication required for reports access');
-      return;
-    }
 
-    try {
-      setReportsLoading(true);
-      const activity = await AgentReportsService.getCustomerActivitySummary(user.token, dateFilter);
-      setCustomerActivity(activity);
-    } catch (error) {
-      console.error('Failed to load customer activity:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load customer activity data');
-    } finally {
-      setReportsLoading(false);
-    }
-  };
 
   const handleReportTabChange = async (tabValue: string) => {
     setSelectedReportTab(tabValue);
@@ -340,9 +324,6 @@ export function AgentDashboard() {
       case 'monthly-interest':
         await loadMonthlyInterest();
         break;
-      case 'customer-activity':
-        await loadCustomerActivity();
-        break;
     }
   };
 
@@ -356,8 +337,6 @@ export function AgentDashboard() {
       // Reload current report with new filter
       if (selectedReportTab === 'transaction-summary') {
         await loadMyTransactionSummary();
-      } else if (selectedReportTab === 'customer-activity') {
-        await loadCustomerActivity();
       }
     }
   };
@@ -373,8 +352,6 @@ export function AgentDashboard() {
       // Reload current report with custom date range
       if (selectedReportTab === 'transaction-summary') {
         await loadMyTransactionSummary();
-      } else if (selectedReportTab === 'customer-activity') {
-        await loadCustomerActivity();
       }
     }
   };
@@ -402,8 +379,6 @@ export function AgentDashboard() {
         await loadLinkedFixedDeposits();
       } else if (selectedReportTab === 'monthly-interest') {
         await loadMonthlyInterest();
-      } else if (selectedReportTab === 'customer-activity') {
-        await loadCustomerActivity();
       }
     } catch (error) {
       console.error('Failed to refresh data:', error);
@@ -1690,13 +1665,12 @@ export function AgentDashboard() {
       )}
 
       <Tabs value={selectedReportTab} onValueChange={handleReportTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="transaction-summary">My Transactions</TabsTrigger>
           <TabsTrigger value="my-customers">My Customers</TabsTrigger>
           <TabsTrigger value="account-details">Account Details</TabsTrigger>
           <TabsTrigger value="linked-fds">Linked FDs</TabsTrigger>
           <TabsTrigger value="monthly-interest">Monthly Interest</TabsTrigger>
-          <TabsTrigger value="customer-activity">Customer Activity</TabsTrigger>
         </TabsList>
 
         {/* My Transaction Summary */}
@@ -2504,203 +2478,7 @@ export function AgentDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Customer Activity Summary */}
-        <TabsContent value="customer-activity" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="flex items-center">
-                    <TrendingUp className="h-5 w-5 mr-2" />
-                    Customer Activity Summary
-                  </CardTitle>
-                  <CardDescription>Overview of customer deposits, withdrawals, and FD status</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Select value={dateFilter.period || 'this_month'} onValueChange={handleDateFilterChange}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="this_week">This Week</SelectItem>
-                      <SelectItem value="this_month">This Month</SelectItem>
-                      <SelectItem value="last_month">Last Month</SelectItem>
-                      <SelectItem value="custom">Custom Range</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={loadCustomerActivity} variant="outline" size="sm">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {dateFilter.period === 'custom' && (
-                <div className="mb-4 flex gap-2 items-end">
-                  <div>
-                    <Label className="text-sm">Start Date</Label>
-                    <Input
-                      type="date"
-                      value={customDateRange.start}
-                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm">End Date</Label>
-                    <Input
-                      type="date"
-                      value={customDateRange.end}
-                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    />
-                  </div>
-                  <Button onClick={applyCustomDateFilter} size="sm">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Apply
-                  </Button>
-                </div>
-              )}
 
-              {reportsLoading && (
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-500">Loading customer activity...</p>
-                </div>
-              )}
-
-              {customerActivity.length > 0 && !reportsLoading && (
-                <div className="space-y-6">
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-blue-600">{customerActivity.length}</p>
-                          <p className="text-sm text-gray-500">Total Customers</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-green-600">
-                            {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.total_deposits.toString()), 0)
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500">Total Deposits</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-red-600">
-                            {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.total_withdrawals.toString()), 0)
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500">Total Withdrawals</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-purple-600">
-                            {customerActivity.reduce((sum, cust) => sum + cust.active_fd_count, 0)}
-                          </p>
-                          <p className="text-sm text-gray-500">Active FDs</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-indigo-600">
-                            {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.current_total_balance.toString()), 0)
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500">Total Balance</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Customer Activity Details */}
-                  <Card>
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle>Customer Activity Details</CardTitle>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
-                            <Download className="h-4 w-4 mr-2" />
-                            Export
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="divide-y">
-                        {customerActivity.map((customer) => (
-                          <div key={customer.customer_id} className="py-4 hover:bg-gray-50 rounded px-2">
-                            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                              <div>
-                                <p className="font-medium text-gray-900">{customer.customer_name}</p>
-                                <p className="text-sm text-gray-500">{customer.customer_id}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Deposits</p>
-                                <p className="font-medium text-green-600">
-                                  {AgentReportsService.formatCurrency(customer.total_deposits)}
-                                </p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Withdrawals</p>
-                                <p className="font-medium text-red-600">
-                                  {AgentReportsService.formatCurrency(customer.total_withdrawals)}
-                                </p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Net Change</p>
-                                <p className={`font-medium ${customer.net_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {AgentReportsService.formatCurrency(customer.net_change)}
-                                </p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm text-gray-600">Active FDs</p>
-                                <p className="font-medium text-purple-600">{customer.active_fd_count}</p>
-                                <p className="text-xs text-gray-500">Fixed Deposits</p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-gray-600">Account Count</p>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    {customer.total_accounts} Account{customer.total_accounts !== 1 ? 's' : ''}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {customerActivity.length === 0 && !reportsLoading && (
-                <div className="text-center py-12">
-                  <TrendingUp className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Customer Activity Found</h3>
-                  <p className="text-gray-500 mb-4">No customer activity data available for the selected period.</p>
-                  <p className="text-sm text-gray-400">Try selecting a different date range or check if transactions have been processed.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
