@@ -17,9 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="Micro Banking System", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust as needed for security
+    allow_origins=[
+        "http://4.194.249.242:5173",  # Your frontend
+        "http://localhost:5173",      # Local development frontend
+        "http://127.0.0.1:5173",      # Local development frontend alternative
+        "http://localhost:3000",      # In case you use different dev port
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -51,7 +56,7 @@ app.include_router(joint_accounts_router,
 app.include_router(tasks_router,
                    prefix='/tasks', tags=["Automated Tasks"])
 # Management Reports (router already has prefix/tags)
-app.include_router(views_router,prefix="/views", tags=["Management Reports"])
+app.include_router(views_router, prefix="/views", tags=["Management Reports"])
 
 
 @app.get("/")

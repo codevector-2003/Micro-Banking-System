@@ -216,9 +216,15 @@ export function AgentDashboard() {
 
     try {
       setReportsLoading(true);
-      const result = await AgentReportsService.getMyTransactionSummary(user.token, dateFilter);
+      // Load both transaction summary and customers to get accurate customer count
+      const [result, customers] = await Promise.all([
+        AgentReportsService.getMyTransactionSummary(user.token, dateFilter),
+        AgentReportsService.getMyCustomers(user.token)
+      ]);
+
       setMyTransactionSummary(result.summary);
       setAgentPerformanceData(result.agents);
+      setMyCustomers(customers);
     } catch (error) {
       console.error('Failed to load transaction summary:', error);
       setError(error instanceof Error ? error.message : 'Failed to load performance data');
@@ -905,36 +911,6 @@ export function AgentDashboard() {
               className="flex-1"
             />
             <Button onClick={handleCustomerSearch}>Search</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Clock className="h-5 w-5 mr-2" />
-            Your Recent Transactions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[].slice(0, 5).map((txn: any) => (
-              <div key={txn.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                <div>
-                  <p className="text-sm font-medium">{txn.customerName}</p>
-                  <p className="text-xs text-gray-500">{txn.timestamp}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm">{txn.type}</p>
-                  <p className={`text-sm font-medium ${txn.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {txn.amount > 0 ? '+' : ''}LKR {Math.abs(txn.amount).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {[].length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-4">No recent transactions</p>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -1795,8 +1771,8 @@ export function AgentDashboard() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-gray-500">Total Agents</p>
-                            <p className="text-2xl font-bold">{myTransactionSummary.total_agents}</p>
+                            <p className="text-sm text-gray-500">Total Customers</p>
+                            <p className="text-2xl font-bold">{myCustomers.length}</p>
                           </div>
                           <Users className="h-8 w-8 text-blue-600" />
                         </div>
