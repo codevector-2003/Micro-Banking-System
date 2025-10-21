@@ -141,6 +141,29 @@ export function ManagerDashboard() {
     }
   }, [success]);
 
+  // Reload monthly interest report when year or month filter changes
+  useEffect(() => {
+    if (user?.token && monthlyInterestReport) {
+      // Only reload if the report has been loaded at least once
+      const reloadMonthlyInterest = async () => {
+        try {
+          setReportLoading(true);
+          const interestReport = await ViewsService.getMonthlyInterestDistribution(
+            user.token,
+            selectedReportYear,
+            selectedReportMonth
+          );
+          setMonthlyInterestReport(interestReport);
+        } catch (error) {
+          setError(handleViewsApiError(error));
+        } finally {
+          setReportLoading(false);
+        }
+      };
+      reloadMonthlyInterest();
+    }
+  }, [selectedReportYear, selectedReportMonth]);
+
   const loadBranchData = async () => {
     if (!user?.token) return;
 
@@ -1897,7 +1920,7 @@ export function ManagerDashboard() {
                   )}
 
                   {/* Monthly Interest Distribution */}
-                  {monthlyInterestReport && monthlyInterestReport.data.length > 0 && (
+                  {monthlyInterestReport && (
                     <Card>
                       <CardHeader>
                         <div className="flex items-center justify-between">
@@ -1936,6 +1959,7 @@ export function ManagerDashboard() {
                               onClick={() => CSVExportService.exportMonthlyInterestReport(monthlyInterestReport.data)}
                               size="sm"
                               variant="outline"
+                              disabled={!monthlyInterestReport.data || monthlyInterestReport.data.length === 0}
                             >
                               <Download className="h-4 w-4 mr-2" />
                               CSV
@@ -1957,16 +1981,26 @@ export function ManagerDashboard() {
                               </tr>
                             </thead>
                             <tbody>
-                              {monthlyInterestReport.data?.slice(0, 10).map((item, idx) => (
-                                <tr key={idx} className="border-b hover:bg-gray-50">
-                                  <td className="p-2">{item.plan_name || 'N/A'}</td>
-                                  <td className="p-2">{item.month ? new Date(item.month).toLocaleDateString('default', { year: 'numeric', month: 'short' }) : 'N/A'}</td>
-                                  <td className="p-2">{item.branch_name || 'N/A'}</td>
-                                  <td className="p-2 text-center">{item.account_count || 0}</td>
-                                  <td className="p-2 text-right">Rs. {(item.total_interest_paid || 0).toLocaleString()}</td>
-                                  <td className="p-2 text-right">Rs. {(item.average_interest_per_account || 0).toLocaleString()}</td>
+                              {monthlyInterestReport.data && monthlyInterestReport.data.length > 0 ? (
+                                monthlyInterestReport.data.slice(0, 10).map((item, idx) => (
+                                  <tr key={idx} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{item.plan_name || 'N/A'}</td>
+                                    <td className="p-2">{item.month ? new Date(item.month).toLocaleDateString('default', { year: 'numeric', month: 'short' }) : 'N/A'}</td>
+                                    <td className="p-2">{item.branch_name || 'N/A'}</td>
+                                    <td className="p-2 text-center">{item.account_count || 0}</td>
+                                    <td className="p-2 text-right">Rs. {(item.total_interest_paid || 0).toLocaleString()}</td>
+                                    <td className="p-2 text-right">Rs. {(item.average_interest_per_account || 0).toLocaleString()}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                                    No interest distribution data found for the selected period.
+                                    <br />
+                                    <span className="text-sm">Try selecting a different year or month.</span>
+                                  </td>
                                 </tr>
-                              ))}
+                              )}
                             </tbody>
                           </table>
                         </div>

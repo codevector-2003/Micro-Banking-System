@@ -2152,7 +2152,7 @@ export function AdminDashboard() {
                             <span>Total</span>
                             <span>
                               {globalReportsData.accountSummary.reduce((sum, p) => sum + p.account_count, 0)} accounts | 
-                              Rs. {(globalReportsData.accountSummary.reduce((sum, p) => sum + p.total_balance, 0) / 1000000).toFixed(2)}M
+                              Rs. {(globalReportsData.accountSummary.reduce((sum, p) => sum + parseFloat(p.total_balance.toString()), 0) / 1000000).toFixed(2)}M
                             </span>
                           </div>
                         </div>
@@ -2200,7 +2200,7 @@ export function AdminDashboard() {
                             <span>Total FDs</span>
                             <span>
                               {globalReportsData.fdPayouts.reduce((sum, fd) => sum + fd.fd_count, 0)} deposits | 
-                              Rs. {(globalReportsData.fdPayouts.reduce((sum, fd) => sum + fd.total_principal, 0) / 1000000).toFixed(2)}M
+                              Rs. {(globalReportsData.fdPayouts.reduce((sum, fd) => sum + parseFloat(fd.total_principal.toString()), 0) / 1000000).toFixed(2)}M
                             </span>
                           </div>
                         </div>

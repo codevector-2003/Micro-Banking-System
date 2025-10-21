@@ -1580,7 +1580,7 @@ export function AgentDashboard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Maturity Date:</span>
-                      <span className="font-medium">{fd.maturity_date ? new Date(fd.maturity_date).toLocaleDateString() : 'N/A'}</span>
+                      <span className="font-medium">{fd.end_date ? new Date(fd.end_date).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     {fd.last_payout_date && (
                       <div className="flex justify-between">
@@ -2205,7 +2205,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-purple-600">
                             {AgentReportsService.formatCurrency(
-                              linkedFDs.reduce((sum, fd) => sum + fd.principal_amount, 0)
+                              linkedFDs.reduce((sum, fd) => sum + parseFloat(fd.principal_amount.toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Principal</p>
@@ -2217,7 +2217,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-orange-600">
                             {AgentReportsService.formatCurrency(
-                              linkedFDs.reduce((sum, fd) => sum + (fd.total_interest_credited || fd.total_interest || 0), 0)
+                              linkedFDs.reduce((sum, fd) => sum + parseFloat((fd.total_interest_credited || fd.total_interest || 0).toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Interest To Be Credited</p>
@@ -2376,7 +2376,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
                             {AgentReportsService.formatCurrency(
-                              monthlyInterest.reduce((sum, item) => sum + item.total_interest_paid, 0)
+                              monthlyInterest.reduce((sum, item) => sum + parseFloat(item.total_interest_paid.toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Interest</p>
@@ -2389,7 +2389,7 @@ export function AgentDashboard() {
                           <p className="text-2xl font-bold text-blue-600">
                             {AgentReportsService.formatCurrency(
                               monthlyInterest.length > 0
-                                ? monthlyInterest.reduce((sum, item) => sum + item.average_interest_per_account, 0) / monthlyInterest.length
+                                ? monthlyInterest.reduce((sum, item) => sum + parseFloat(item.average_interest_per_account.toString()), 0) / monthlyInterest.length
                                 : 0
                             )}
                           </p>
@@ -2413,7 +2413,7 @@ export function AgentDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {Array.from(new Set(monthlyInterest.map(item => item.plan_name))).map((planName) => {
                       const typeData = monthlyInterest.filter(item => item.plan_name === planName);
-                      const totalInterest = typeData.reduce((sum, item) => sum + item.total_interest_paid, 0);
+                      const totalInterest = typeData.reduce((sum, item) => sum + parseFloat(item.total_interest_paid.toString()), 0);
                       const totalAccounts = typeData.reduce((sum, item) => sum + item.account_count, 0);
 
                       return (
@@ -2585,7 +2585,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">
                             {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + cust.total_deposits, 0)
+                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.total_deposits.toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Deposits</p>
@@ -2597,7 +2597,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-red-600">
                             {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + cust.total_withdrawals, 0)
+                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.total_withdrawals.toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Withdrawals</p>
@@ -2619,7 +2619,7 @@ export function AgentDashboard() {
                         <div className="text-center">
                           <p className="text-2xl font-bold text-indigo-600">
                             {AgentReportsService.formatCurrency(
-                              customerActivity.reduce((sum, cust) => sum + cust.current_total_balance, 0)
+                              customerActivity.reduce((sum, cust) => sum + parseFloat(cust.current_total_balance.toString()), 0)
                             )}
                           </p>
                           <p className="text-sm text-gray-500">Total Balance</p>
